@@ -2,6 +2,12 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import Header from '../components/landing/Header';
 import HeroSection from '../components/landing/HeroSection';
+import HybridDeployment from '../components/landing/HybridDeployment';
+import FeatureGrid from '../components/landing/FeatureGrid';
+import AIValueSection from '../components/landing/AIValueSection';
+import PricingSection from '../components/landing/PricingSection';
+import FAQSection from '../components/landing/FAQSection';
+import Footer from '../components/landing/Footer';
 import './LandingPage.css';
 
 const LandingPage = () => {
@@ -29,40 +35,14 @@ const LandingPage = () => {
 
                 <main className="landing-main">
                     <HeroSection />
-
-                    {/* Placeholder for future sections */}
-                    <section id="features" className="section">
-                        <div className="container text-center">
-                            <h2 className="text-gradient">Core Features</h2>
-                            <p className="text-secondary">Coming soon: IFRS Compliance, Multi-Currency, Manufacturing, AI Engine</p>
-                        </div>
-                    </section>
-
-                    <section id="pricing" className="section">
-                        <div className="container text-center">
-                            <h2 className="text-gradient">Pricing Plans</h2>
-                            <p className="text-secondary">Coming soon: Free, Cloud Basic, Cloud Premium, Enterprise</p>
-                        </div>
-                    </section>
-
-                    <section id="faq" className="section">
-                        <div className="container text-center">
-                            <h2 className="text-gradient">Frequently Asked Questions</h2>
-                            <p className="text-secondary">Coming soon: Data ownership, Security, Compliance</p>
-                        </div>
-                    </section>
+                    <HybridDeployment />
+                    <FeatureGrid />
+                    <AIValueSection />
+                    <PricingSection />
+                    <FAQSection />
                 </main>
 
-                <footer className="landing-footer">
-                    <div className="container">
-                        <p className="text-center text-secondary">
-                            MISoft is powered by <a href="https://gentleomegaai.space/" target="_blank" rel="noopener noreferrer" className="text-gradient">GentleOmegaAI</a>
-                        </p>
-                        <p className="text-center text-muted">
-                            © 2025 MISoft. All Rights Reserved.
-                        </p>
-                    </div>
-                </footer>
+                <Footer />
             </div>
         </>
     );

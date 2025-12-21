@@ -1,58 +1,53 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight, Shield, CheckCircle, Zap } from 'lucide-react';
 import GlassCard from '../shared/GlassCard';
 import './HeroSection.css';
 
 const HeroSection = () => {
     return (
         <section className="hero-section">
-            <div className="hero-particles"></div>
-
             <div className="container hero-content">
-                <div className="hero-text animate-fade-in">
+                <div className="hero-text">
                     <h1 className="hero-title">
-                        Enterprise <span className="text-gradient">AI Accounting</span>
+                        Enterprise AI Accounting
                         <br />
                         & Finance Platform
                     </h1>
 
                     <p className="hero-subtitle">
                         IFRS-Compliant | Hybrid Deployment | Manufacturing ERP
-                        <br />
-                        <span className="neon-text">Powered by Artificial Intelligence</span>
                     </p>
 
                     <div className="hero-cta">
-                        <Link to="/register" className="btn btn-primary btn-lg">
-                            <Sparkles size={20} />
-                            Start Free Trial
+                        <Link to="/register" className="btn-hero btn-primary">
+                            <span>Start Free Trial</span>
                             <ArrowRight size={20} />
                         </Link>
 
-                        <Link to="/login" className="btn btn-secondary btn-lg">
+                        <Link to="/login" className="btn-hero btn-secondary">
                             Login to Dashboard
                         </Link>
                     </div>
 
                     <div className="hero-features">
                         <div className="feature-badge">
-                            <span className="badge-icon">✓</span>
-                            Full Data Ownership
+                            <Shield size={16} />
+                            <span>Full Data Ownership</span>
                         </div>
                         <div className="feature-badge">
-                            <span className="badge-icon">✓</span>
-                            IFRS Compliant
+                            <CheckCircle size={16} />
+                            <span>IFRS Compliant</span>
                         </div>
                         <div className="feature-badge">
-                            <span className="badge-icon">✓</span>
-                            AI-Powered
+                            <Zap size={16} />
+                            <span>AI-Powered</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="hero-visual animate-slide-right">
-                    <GlassCard className="dashboard-preview" glow>
+                <div className="hero-visual">
+                    <GlassCard className="dashboard-preview">
                         <div className="preview-header">
                             <div className="preview-dots">
                                 <span></span>
@@ -65,14 +60,14 @@ const HeroSection = () => {
                         <div className="preview-content">
                             <div className="preview-stat">
                                 <div className="stat-label">Total Revenue</div>
-                                <div className="stat-value text-gradient">$2.4M</div>
-                                <div className="stat-change positive">+12.5%</div>
+                                <div className="stat-value">$2.4M</div>
+                                <div className="stat-change">+12.5%</div>
                             </div>
 
                             <div className="preview-stat">
                                 <div className="stat-label">Active Invoices</div>
                                 <div className="stat-value">1,247</div>
-                                <div className="stat-change positive">+8.3%</div>
+                                <div className="stat-change">+8.3%</div>
                             </div>
 
                             <div className="preview-chart">

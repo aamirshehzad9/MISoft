@@ -1,0 +1,21 @@
+import React from 'react';
+import GlassCard from '../shared/GlassCard';
+
+const FeatureCard = ({ icon, title, description, highlights }) => {
+    return (
+        <GlassCard className="feature-card" hover>
+            <div className="feature-card-icon">{icon}</div>
+            <h3 className="feature-card-title">{title}</h3>
+            <p className="feature-card-description">{description}</p>
+            {highlights && (
+                <ul className="feature-highlights">
+                    {highlights.map((highlight, index) => (
+                        <li key={index}>{highlight}</li>
+                    ))}
+                </ul>
+            )}
+        </GlassCard>
+    );
+};
+
+export default FeatureCard;
