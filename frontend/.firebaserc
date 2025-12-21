@@ -1,5 +1,12 @@
 {
   "projects": {
     "default": "gentleomegaai"
+  },
+  "targets": {
+    "gentleomegaai": {
+      "hosting": {
+        "misoft": ["misoft-gentleomegaai"]
+      }
+    }
   }
 }
