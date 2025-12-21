@@ -1,0 +1,56 @@
+# .dockerignore for MISoft Backend
+# Prevent sensitive and unnecessary files from being copied to Docker image
+
+# Environment files (CRITICAL - NEVER include in image)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+venv_new/
+ENV/
+env/
+
+# Database files
+*.sqlite3
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Tests
+tests/
+*_test.py
+test_*.py
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
