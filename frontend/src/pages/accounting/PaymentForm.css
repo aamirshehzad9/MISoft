@@ -1,0 +1,50 @@
+.payment-form-page {
+    padding: var(--spacing-lg);
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.payment-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+}
+
+.invoice-allocation-table {
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.allocation-table-header {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr 1.5fr;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background-color: var(--color-gray-50);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-700);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.allocation-table-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr 1.5fr;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--color-gray-200);
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    .allocation-table-header {
+        display: none;
+    }
+
+    .allocation-table-row {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-xs);
+    }
+}

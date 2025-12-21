@@ -1,0 +1,46 @@
+.partners-list-page {
+    padding: var(--spacing-lg);
+}
+
+.partners-filters {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    flex-wrap: wrap;
+}
+
+.partners-search {
+    flex: 1;
+    min-width: 300px;
+}
+
+.partners-filter-buttons {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.partner-name-cell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.partner-company {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-500);
+}
+
+.partner-type-badges {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+@media (max-width: 768px) {
+    .partners-filters {
+        flex-direction: column;
+    }
+
+    .partners-search {
+        width: 100%;
+    }
+}

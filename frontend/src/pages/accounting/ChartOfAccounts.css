@@ -1,0 +1,215 @@
+.coa-page {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.page-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.coa-toolbar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    background: var(--bg-surface);
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    flex: 1;
+    max-width: 400px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.search-bar input {
+    border: none;
+    background: transparent;
+    margin-left: 0.5rem;
+    width: 100%;
+    outline: none;
+    color: var(--text-primary);
+}
+
+.coa-tree-container {
+    background: var(--bg-surface);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.tree-header {
+    display: flex;
+    padding: 1rem 1.5rem;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+}
+
+.col-name {
+    flex: 1;
+}
+
+.col-type {
+    width: 150px;
+}
+
+.col-balance {
+    width: 150px;
+    text-align: right;
+}
+
+.col-actions {
+    width: 80px;
+    text-align: center;
+}
+
+.tree-body {
+    padding: 0.5rem 0;
+}
+
+/* Tree Item Styles */
+.account-tree-row {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--border-subtle);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.account-tree-row:hover {
+    background: var(--bg-hover);
+}
+
+.account-tree-row.is-group {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.account-tree-row.is-ledger {
+    color: var(--text-secondary);
+}
+
+.account-info-primary {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.toggle-icon,
+.spacer-icon {
+    width: 20px;
+    display: flex;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.account-icon {
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+}
+
+.account-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    background: var(--bg-subtle);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+}
+
+.account-info-secondary {
+    display: flex;
+    align-items: center;
+}
+
+.account-type-badge {
+    width: 150px;
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 20px;
+    text-transform: capitalize;
+    text-align: center;
+    font-weight: 500;
+}
+
+.type-asset {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.type-liability {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.type-equity {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.type-revenue {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+}
+
+.type-expense {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.account-balance {
+    width: 150px;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+}
+
+.account-actions {
+    width: 80px;
+    display: flex;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.account-tree-row:hover .account-actions {
+    opacity: 1;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.btn-icon:hover {
+    color: var(--primary-color);
+    background: var(--bg-subtle);
+}
