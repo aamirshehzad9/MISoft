@@ -1,9 +1,40 @@
 /* Design System - CSS Variables */
+/* Purple + Cyan Theme for MISoft Landing Page */
 
 :root {
-    /* Colors - Primary */
-    --color-primary: #667eea;
-    --color-primary-dark: #764ba2;
+    /* Primary Colors - Purple + Cyan */
+    --primary: #8b5cf6;
+    /* Purple */
+    --primary-dark: #7c3aed;
+    --primary-light: #a78bfa;
+    --accent: #06b6d4;
+    /* Cyan */
+    --accent-dark: #0891b2;
+    --accent-light: #22d3ee;
+
+    /* Neon Glow */
+    --neon-purple: #a855f7;
+    --neon-cyan: #0ff;
+
+    /* Background - Dark Theme */
+    --bg-primary: #0f0f23;
+    --bg-secondary: #1a1a2e;
+    --bg-tertiary: #16213e;
+
+    /* Glass Effect */
+    --glass-bg: rgba(139, 92, 246, 0.05);
+    --glass-bg-hover: rgba(139, 92, 246, 0.1);
+    --glass-border: rgba(139, 92, 246, 0.2);
+
+    /* Text Colors */
+    --text-primary: #ffffff;
+    --text-secondary: #cbd5e1;
+    --text-tertiary: #94a3b8;
+    --text-muted: #64748b;
+
+    /* Legacy compatibility */
+    --color-primary: #8b5cf6;
+    --color-primary-dark: #7c3aed;
     --color-primary-light: #a78bfa;
 
     /* Colors - Semantic */

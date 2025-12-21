@@ -1,0 +1,29 @@
+.theme-toggle {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--primary);
+  transform: scale(1.05);
+}
+
+.theme-icon {
+  color: var(--text-primary);
+  transition: transform 0.3s ease;
+}
+
+.theme-toggle:hover .theme-icon {
+  transform: rotate(20deg);
+}

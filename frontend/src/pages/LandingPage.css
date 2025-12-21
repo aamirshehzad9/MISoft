@@ -1,0 +1,27 @@
+.landing-page {
+    min-height: 100vh;
+    background: var(--bg-primary);
+}
+
+.landing-main {
+    padding-top: 80px;
+    /* Header height */
+}
+
+.section {
+    padding: var(--spacing-3xl) 0;
+}
+
+.landing-footer {
+    padding: var(--spacing-2xl) 0;
+    border-top: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+}
+
+.landing-footer p {
+    margin-bottom: var(--spacing-sm);
+}
+
+.landing-footer a {
+    font-weight: 600;
+}

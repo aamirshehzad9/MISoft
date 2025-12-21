@@ -1,6 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import MainLayout from './components/layout/MainLayout';
@@ -33,7 +36,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Public Route Component
+// Public Route Component (redirects to dashboard if logged in)
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
@@ -52,6 +55,8 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public Routes */}
+      <Route path="/" element={<LandingPage />} />
+
       <Route
         path="/login"
         element={
@@ -63,15 +68,14 @@ function AppRoutes() {
 
       {/* Protected Routes */}
       <Route
-        path="/"
+        path="/dashboard"
         element={
           <ProtectedRoute>
             <MainLayout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
+        <Route index element={<Dashboard />} />
 
         {/* Partners Routes */}
         <Route path="partners">
@@ -89,7 +93,7 @@ function AppRoutes() {
 
         {/* Manufacturing Routes */}
         <Route path="manufacturing">
-          <Route index element={<Navigate to="/manufacturing/production-orders" replace />} />
+          <Route index element={<Navigate to="/dashboard/manufacturing/production-orders" replace />} />
           <Route path="bom" element={<div style={{ padding: '2rem' }}>BOM List - Coming Soon</div>} />
           <Route path="production-orders">
             <Route index element={<ProductionOrdersList />} />
@@ -100,7 +104,7 @@ function AppRoutes() {
 
         {/* Accounting Routes */}
         <Route path="accounting">
-          <Route index element={<Navigate to="/accounting/invoices" replace />} />
+          <Route index element={<Navigate to="/dashboard/accounting/invoices" replace />} />
           <Route path="invoices">
             <Route index element={<InvoicesList />} />
             <Route path="new" element={<InvoiceForm />} />
@@ -124,19 +128,23 @@ function AppRoutes() {
         </Route>
       </Route>
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Catch all - redirect to landing */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <HelmetProvider>
+      <BrowserRouter>
+        <ThemeProvider>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    </HelmetProvider>
   );
 }
 
