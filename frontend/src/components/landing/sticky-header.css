@@ -169,12 +169,12 @@
 
 /* HOTFIX: Crafted Logo - Round & Clean */
 .brand-logo-crafted {
-    height: 40px;
-    width: 40px;
+    height: 40px !important;
+    width: 40px !important;
     /* Enforce square for circle crop */
-    border-radius: 50%;
+    border-radius: 50% !important;
     /* "Rounded shape" */
-    object-fit: cover;
+    object-fit: cover !important;
     /* Fill the circle */
     background-color: white;
     /* Ensure transparency doesn't hide black text if any */

@@ -4,6 +4,7 @@ import { Mail, Phone, MapPin, Twitter, Linkedin, Github } from 'lucide-react';
 import { footerData } from '../../data/footer';
 import logo from '../../assets/logo.png';
 import './Footer.css';
+import './sticky-header.css'; // Import shared logo styles
 
 const Footer = () => {
     // Footer Data usually imported, but for safety in this hotfix, I'll access it safely or mock it if needed.
@@ -16,7 +17,7 @@ const Footer = () => {
                     {/* Brand Column */}
                     <div className="lg:col-span-2">
                         <Link to="/" className="flex items-center gap-3 mb-6 text-decoration-none">
-                            <img src={logo} alt="MISoft" className="h-10 w-auto object-contain bg-white rounded p-1" />
+                            <img src={logo} alt="MISoft" className="brand-logo-crafted" />
                             <span className="text-2xl font-bold tracking-tight text-white">MISoft</span>
                         </Link>
                         <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-sm">

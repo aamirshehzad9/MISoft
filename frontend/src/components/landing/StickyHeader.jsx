@@ -8,9 +8,27 @@ import './sticky-header.css';
 
 const StickyHeader = () => {
     const [scrolled, setScrolled] = useState(false);
-    const [megaMenuOpen, setMegaMenuOpen] = useState(false);
+    const [activeMenu, setActiveMenu] = useState(null); // 'business' | 'accountants' | null
     const [countryModalOpen, setCountryModalOpen] = useState(false);
     const [selectedCountry, setSelectedCountry] = useState('PK'); // Default Pakistan
+    const [hoverTimeout, setHoverTimeout] = useState(null);
+
+    // Interaction Handlers (Hover Intent)
+    const handleMouseEnter = (menu) => {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        setActiveMenu(menu);
+    };
+
+    const handleMouseLeave = () => {
+        const timeout = setTimeout(() => {
+            setActiveMenu(null);
+        }, 300); // 300ms grace period
+        setHoverTimeout(timeout);
+    };
+
+    const handleMenuEnter = () => {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+    };
 
     // Scroll Logic for Transformation
     useEffect(() => {
@@ -33,29 +51,34 @@ const StickyHeader = () => {
                 <div className="container" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     {/* Left Group: Logo + Main Navigation */}
                     <div className="flex flex-row items-center gap-10">
-                        {/* Logo Section */}
-                        <Link to="/" className="brand-logo-container">
+                        {/* Logo Section - Keeping 40px aligned WITH MARGIN */}
+                        <Link to="/" className="brand-logo-container mr-12" style={{ marginRight: '3rem' }}>
                             <img src={logo} alt="MISoft Logo" className="brand-logo-crafted" />
                             <span className="brand-text">MISoft</span>
                         </Link>
 
                         {/* Navigation - Desktop (Forensic Structure: Left-Aligned) */}
-                        <nav className="hidden md:flex flex-row items-center gap-10" onMouseLeave={() => setMegaMenuOpen(false)}>
+                        <nav className="hidden md:flex flex-row items-center gap-10" onMouseLeave={handleMouseLeave}>
                             <div className="relative h-full flex items-center">
                                 <button
                                     className="nav-link"
-                                    onMouseEnter={() => setMegaMenuOpen(true)}
-                                    // Click can toggle, but hover is primary per user request
-                                    onClick={() => setMegaMenuOpen(!megaMenuOpen)}
+                                    onMouseEnter={() => handleMouseEnter('business')}
+                                    onClick={() => setActiveMenu(activeMenu === 'business' ? null : 'business')}
                                 >
-                                    For Business <ChevronDown size={14} className={`transition-transform duration-300 ${megaMenuOpen ? 'rotate-180' : ''}`} />
+                                    For Business <ChevronDown size={14} className={`transition-transform duration-300 ${activeMenu === 'business' ? 'rotate-180' : ''}`} />
                                 </button>
-                                {/* Mega Menu Injection Position - aligned to parent or full width? Usually full width. */}
                             </div>
 
-                            <button className="nav-link">
-                                Accountants <ChevronDown size={14} className="opacity-70" />
-                            </button>
+                            <div className="relative h-full flex items-center">
+                                <button
+                                    className="nav-link"
+                                    onMouseEnter={() => handleMouseEnter('accountants')}
+                                    onClick={() => setActiveMenu(activeMenu === 'accountants' ? null : 'accountants')}
+                                >
+                                    Accountants <ChevronDown size={14} className={`transition-transform duration-300 ${activeMenu === 'accountants' ? 'rotate-180' : ''}`} />
+                                </button>
+                            </div>
+
                             <Link to="/pricing" className="nav-link text-decoration-none">
                                 Pricing
                             </Link>
@@ -115,15 +138,16 @@ const StickyHeader = () => {
 
             {/* Mega Menu Component - Fixed Position below header */}
             <div
-                className={`fixed left-0 w-full z-[990] transition-all duration-300 ease-in-out ${megaMenuOpen ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-4 invisible'}`}
+                className={`fixed left-0 w-full z-[990] transition-all duration-300 ease-in-out ${activeMenu ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-4 invisible'}`}
                 style={{ top: scrolled ? '72px' : '90px' }}
-                onMouseEnter={() => setMegaMenuOpen(true)}
-                onMouseLeave={() => setMegaMenuOpen(false)}
+                onMouseEnter={() => { handleMenuEnter(); if (matchMedia('(min-width: 768px)').matches && activeMenu) setActiveMenu(activeMenu); }}
+                onMouseLeave={handleMouseLeave}
             >
                 <MegaMenu
-                    isOpen={megaMenuOpen}
-                    onMouseEnter={() => setMegaMenuOpen(true)}
-                    onMouseLeave={() => setMegaMenuOpen(false)}
+                    isOpen={!!activeMenu}
+                    activeMenu={activeMenu}
+                    onMouseEnter={handleMenuEnter}
+                    onMouseLeave={handleMouseLeave}
                 />
             </div>
 
