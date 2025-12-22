@@ -31,26 +31,38 @@ const StickyHeader = () => {
         <>
             <header className={`sticky-header ${scrolled ? 'scrolled' : ''}`}>
                 <div className="container" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    {/* Logo Section */}
-                    <Link to="/" className="flex items-center gap-2 text-decoration-none">
-                        <img src={logo} alt="MISoft Logo" className="h-10 w-auto object-contain" />
-                    </Link>
+                    {/* Left Group: Logo + Main Navigation */}
+                    <div className="flex flex-row items-center gap-10">
+                        {/* Logo Section */}
+                        <Link to="/" className="flex items-center gap-2 text-decoration-none">
+                            <img src={logo} alt="MISoft Logo" className="h-8 w-auto object-contain" />
+                        </Link>
 
-                    {/* Navigation - Desktop (Mega Menu Trigger) */}
-                    <nav className="hidden md:flex items-center gap-8">
-                        <button
-                            className="nav-link bg-transparent border-none cursor-pointer flex items-center gap-1"
-                            onMouseEnter={() => setMegaMenuOpen(true)}
-                            onClick={() => setMegaMenuOpen(!megaMenuOpen)}
-                        >
-                            Products & Features <ChevronDown size={14} />
-                        </button>
-                        <Link to="/resources" className="nav-link text-decoration-none">Resources</Link>
-                        <Link to="/pricing" className="nav-link text-decoration-none">Pricing</Link>
-                    </nav>
+                        {/* Navigation - Desktop (Forensic Structure: Left-Aligned) */}
+                        <nav className="hidden md:flex flex-row items-center gap-6">
+                            <button
+                                className="nav-link bg-transparent border-none cursor-pointer flex items-center gap-1 text-sm font-medium hover:text-brand-primary transition-colors whitespace-nowrap"
+                                onMouseEnter={() => setMegaMenuOpen(true)}
+                                onClick={() => setMegaMenuOpen(!megaMenuOpen)}
+                            >
+                                For Business <ChevronDown size={14} className="opacity-70" />
+                            </button>
+                            <button
+                                className="nav-link bg-transparent border-none cursor-pointer flex items-center gap-1 text-sm font-medium hover:text-brand-primary transition-colors whitespace-nowrap"
+                            >
+                                Accountants <ChevronDown size={14} className="opacity-70" />
+                            </button>
+                            <Link to="/resources" className="nav-link text-decoration-none text-sm font-medium hover:text-brand-primary transition-colors whitespace-nowrap">
+                                Resources
+                            </Link>
+                            <Link to="/pricing" className="nav-link text-decoration-none text-sm font-medium hover:text-brand-primary transition-colors whitespace-nowrap">
+                                Pricing
+                            </Link>
+                        </nav>
+                    </div>
 
-                    {/* Right Actions */}
-                    <div className="flex items-center gap-4">
+                    {/* Right Group: Utility + CTA */}
+                    <div className="flex items-center gap-3">
                         {/* Country Selector */}
                         <button
                             className="country-selector-btn"
@@ -61,8 +73,8 @@ const StickyHeader = () => {
                         </button>
 
                         {/* Search Icon */}
-                        <button className="bg-transparent border-none cursor-pointer p-2 text-gray-500 hover:text-brand-primary transition-colors">
-                            <Search size={20} />
+                        <button className="hidden lg:flex items-center gap-1 bg-transparent border-none cursor-pointer text-gray-500 hover:text-brand-primary transition-colors">
+                            <Search size={18} />
                         </button>
 
                         {/* Login Dropdown */}

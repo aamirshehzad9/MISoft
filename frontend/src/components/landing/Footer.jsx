@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin, Twitter, Linkedin, Github } from 'lucide-react';
 import { footerData } from '../../data/footer';
+import logo from '../../assets/logo.png';
 import './Footer.css';
 
 const Footer = () => {
@@ -11,10 +12,9 @@ const Footer = () => {
                 <div className="footer-grid">
                     {/* Company Info */}
                     <div className="footer-column">
-                        <h3 className="footer-logo">
-                            <span className="logo-mi">MI</span>
-                            <span className="logo-soft">Soft</span>
-                        </h3>
+                        <Link to="/" className="footer-logo-link">
+                            <img src={logo} alt="MISoft Logo" className="h-8 w-auto object-contain mb-4" />
+                        </Link>
                         <p className="footer-tagline">{footerData.company.tagline}</p>
                         <p className="footer-description">{footerData.company.description}</p>
                     </div>

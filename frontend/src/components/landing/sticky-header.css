@@ -24,16 +24,17 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
 }
 
-/* Container Spacing for Responsiveness */
+/* Container Spacing for Responsiveness - Enterprise Wide */
 .sticky-header .container {
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-width: 1400px;
-    /* Provide ample room */
+    max-width: 1440px;
+    /* Forensic Enterprise Standard */
     padding: 0 2rem;
     margin: 0 auto;
+    width: 100%;
 }
 
 /* Navigation Gap Controls */

@@ -5,61 +5,61 @@ import DashboardPreview from './DashboardPreview';
 
 const HeroSection = () => {
     return (
-        <section className="relative w-full min-h-screen pt-[120px] pb-20 overflow-hidden flex items-center">
+        <section className="relative w-full min-h-screen pt-36 pb-24 overflow-hidden flex items-center">
             {/* Background Layer - Forensic "White Base + Peaceful Particles" */}
             <div className="absolute inset-0 z-0 bg-white">
                 <HeroBackground />
             </div>
 
-            <div className="container relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                {/* Left Content */}
+            <div className="container relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                {/* Left Content (Dominant 60%) */}
                 <div
-                    className="flex flex-col gap-6"
+                    className="lg:col-span-7 flex flex-col gap-8 pr-0 lg:pr-12"
                 >
                     {/* Badge */}
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary/5 rounded-full border border-brand-primary/10 w-fit">
-                        <span className="w-2 h-2 rounded-full bg-brand-accent-green animate-pulse"></span>
+                        <span className="w-2 h-2 rounded-full bg-[#15D46C] animate-pulse"></span>
                         <span className="text-sm font-semibold text-brand-primary tracking-wide uppercase">New: AI Auto-Reconciliation</span>
                     </div>
 
-                    {/* Headline - Forensic Typography (QuickBooks Style) */}
-                    <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 leading-[1.1] tracking-tight">
-                        The Enterprise <br />
+                    {/* Headline - Forensic Typography (QuickBooks Scale) */}
+                    <h1 className="text-6xl lg:text-[5rem] font-bold text-gray-900 leading-[1.05] tracking-tight">
+                        Precision in <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-primary to-brand-secondary">
-                            AI Accounting Platform
-                        </span>
+                            Data.
+                        </span> <br />
+                        Intelligence in Strategy.
                     </h1>
 
-                    <p className="text-lg text-gray-600 max-w-lg leading-relaxed">
-                        Hybrid Cloud & Local deployment. IFRS-Compliant.
-                        Designed for manufacturing, retail, and service industries
-                        that demand more than just bookkeeping.
+                    <p className="text-xl text-gray-600 max-w-2xl leading-relaxed font-medium">
+                        The AI-first accounting platform for manufacturing & retail.
+                        IFRS-compliant, hybrid deployment, and enterprise-grade security.
                     </p>
 
                     {/* Trust Signals */}
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-500 font-medium">
-                        <div className="flex items-center gap-1"><ShieldCheck size={16} className="text-brand-primary" /> SOC 2 Type II</div>
-                        <div className="flex items-center gap-1"><Cloud size={16} className="text-brand-primary" /> 99.99% Uptime</div>
-                        <div className="flex items-center gap-1"><Globe size={16} className="text-brand-primary" /> Multi-Currency</div>
+                    <div className="flex flex-wrap gap-6 text-sm text-gray-500 font-semibold my-2">
+                        <div className="flex items-center gap-2"><ShieldCheck size={18} className="text-[#15D46C]" /> SOC 2 Type II</div>
+                        <div className="flex items-center gap-2"><Cloud size={18} className="text-[#15D46C]" /> 99.99% Uptime</div>
+                        <div className="flex items-center gap-2"><Globe size={18} className="text-[#15D46C]" /> Multi-Currency</div>
                     </div>
 
-                    {/* CTAs */}
-                    <div className="flex items-center gap-4 mt-4">
-                        <a href="/register" className="btn-primary text-lg px-8 py-3 shadow-lg shadow-brand-primary/20 hover:shadow-brand-primary/40 transition-shadow">
-                            Start Free Trial
+                    {/* CTAs - Enterprise Size */}
+                    <div className="flex items-center gap-4 mt-2">
+                        <a href="/pricing" className="bg-[#15D46C] text-white text-lg font-bold px-10 py-4 rounded-full shadow-lg shadow-green-500/20 hover:shadow-green-500/40 hover:bg-[#12b85e] transition-all transform hover:-translate-y-0.5">
+                            See Plans & Pricing
                         </a>
-                        <button className="px-8 py-3 rounded-lg border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition-colors bg-white/50 backdrop-blur-sm">
+                        <button className="px-10 py-4 rounded-full border-2 border-brand-primary/20 text-brand-primary font-bold hover:bg-brand-primary/5 transition-colors">
                             Watch Demo
                         </button>
                     </div>
 
-                    <p className="text-sm text-gray-400 mt-2">
+                    <p className="text-sm text-gray-400 font-medium">
                         No credit card required • 14-day free trial • Cancel anytime
                     </p>
                 </div>
 
-                {/* Right Content - Animated Dashboard */}
-                <div className="hidden lg:block relative z-20">
+                {/* Right Content - Animated Dashboard (40%) */}
+                <div className="hidden lg:block lg:col-span-5 relative z-20">
                     <DashboardPreview />
                 </div>
             </div>
