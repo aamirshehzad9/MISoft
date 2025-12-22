@@ -40,7 +40,7 @@ const StickyHeader = () => {
                         </Link>
 
                         {/* Navigation - Desktop (Forensic Structure: Left-Aligned) */}
-                        <nav className="hidden md:flex flex-row items-center gap-8" onMouseLeave={() => setMegaMenuOpen(false)}>
+                        <nav className="hidden md:flex flex-row items-center gap-10" onMouseLeave={() => setMegaMenuOpen(false)}>
                             <div className="relative h-full flex items-center">
                                 <button
                                     className="nav-link"
@@ -56,11 +56,11 @@ const StickyHeader = () => {
                             <button className="nav-link">
                                 Accountants <ChevronDown size={14} className="opacity-70" />
                             </button>
-                            <Link to="/resources" className="nav-link text-decoration-none">
-                                Resources
-                            </Link>
                             <Link to="/pricing" className="nav-link text-decoration-none">
                                 Pricing
+                            </Link>
+                            <Link to="/resources" className="nav-link text-decoration-none">
+                                Learn & Support <ChevronDown size={14} className="opacity-70" />
                             </Link>
                         </nav>
                     </div>
