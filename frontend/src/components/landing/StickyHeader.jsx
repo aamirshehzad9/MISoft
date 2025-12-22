@@ -34,8 +34,9 @@ const StickyHeader = () => {
                     {/* Left Group: Logo + Main Navigation */}
                     <div className="flex flex-row items-center gap-10">
                         {/* Logo Section */}
-                        <Link to="/" className="flex items-center gap-2 text-decoration-none">
+                        <Link to="/" className="brand-logo-container">
                             <img src={logo} alt="MISoft Logo" className="h-8 w-auto object-contain" />
+                            <span className="brand-text">MISoft</span>
                         </Link>
 
                         {/* Navigation - Desktop (Forensic Structure: Left-Aligned) */}
@@ -119,7 +120,11 @@ const StickyHeader = () => {
                 onMouseEnter={() => setMegaMenuOpen(true)}
                 onMouseLeave={() => setMegaMenuOpen(false)}
             >
-                <MegaMenu isOpen={true} /> {/* Always "open" internally, controlled by parent container visibility */}
+                <MegaMenu
+                    isOpen={megaMenuOpen}
+                    onMouseEnter={() => setMegaMenuOpen(true)}
+                    onMouseLeave={() => setMegaMenuOpen(false)}
+                />
             </div>
 
             {/* Country Selecor Modal */}

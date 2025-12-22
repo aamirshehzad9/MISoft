@@ -7,9 +7,13 @@ import {
 } from 'lucide-react';
 import './mega-menu.css';
 
-const MegaMenu = ({ isOpen }) => {
+const MegaMenu = ({ isOpen, onMouseEnter, onMouseLeave }) => {
     return (
-        <div className={`mega-menu-container ${isOpen ? 'active' : ''}`}>
+        <div
+            className={`mega-menu-container ${isOpen ? 'active' : ''}`}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+        >
             <div className="mega-menu-grid">
                 {/* Column 1: Core Features */}
                 <div className="persona-column">

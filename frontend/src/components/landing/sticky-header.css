@@ -151,3 +151,26 @@
         font-size: 0.9rem;
     }
 }
+
+/* HOTFIX: Force Horizontal Nav */
+.sticky-header nav {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+}
+
+/* HOTFIX: Logo + Text Alignment */
+.brand-logo-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+}
+
+.brand-text {
+    color: #FFFFFF;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    line-height: 1;
+}
