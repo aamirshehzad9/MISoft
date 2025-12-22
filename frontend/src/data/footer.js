@@ -1,4 +1,4 @@
-// Footer data (QuickBooks-inspired professional structure)
+// Footer data (MISoft Professional Structure)
 export const footerData = {
     company: {
         name: 'MISoft',
@@ -6,7 +6,7 @@ export const footerData = {
         description: 'Professional-grade accounting software with IFRS compliance, hybrid deployment, and manufacturing ERP capabilities.'
     },
     contact: {
-        phone: '1-888-829-8589',
+        phone: '1-920-8066680',
         email: 'contact@misoft.com'
     },
     links: {
@@ -18,7 +18,7 @@ export const footerData = {
         ],
         accountants: [
             { label: 'Grow Your Practice Online', path: '/accountants/grow' },
-            { label: 'QuickBooks Online Accountant', path: '/accountants/online' },
+            { label: 'MISoft Online Accountant', path: '/accountants/online' },
             { label: 'ProAdvisor', path: '/accountants/proadvisor' },
             { label: 'Upcoming Events', path: '/accountants/events' },
             { label: 'Payroll Resources', path: '/accountants/payroll' }
@@ -29,15 +29,15 @@ export const footerData = {
             { label: 'Invoicing', path: '/features/invoicing' },
             { label: 'Accounting Reports', path: '/features/reports' },
             { label: 'Inventory Management', path: '/features/inventory' },
-            { label: 'Connect Your Apps', path: '/features/apps' },
-            { label: 'QuickBooks Payments', path: '/features/payments' }
+            { label: 'Manufacturing ERP', path: '/features/manufacturing' },
+            { label: 'Multi-Currency Support', path: '/features/multi-currency' }
         ],
         support: [
-            { label: 'QuickBooks Online Support', path: '/support/online' },
-            { label: 'QuickBooks Online FAQ', path: '/support/faq' },
-            { label: 'QuickBooks Accounting Glossary', path: '/support/glossary' },
-            { label: 'QuickBooks Resources', path: '/support/resources' },
-            { label: 'Accounting and Business (Self and Templates)', path: '/support/templates' },
+            { label: 'MISoft Online Support', path: '/support/online' },
+            { label: 'MISoft Online FAQ', path: '/support/faq' },
+            { label: 'MISoft Accounting Glossary', path: '/support/glossary' },
+            { label: 'MISoft Resources', path: '/support/resources' },
+            { label: 'Accounting and Business Templates', path: '/support/templates' },
             { label: 'Make a Complaint', path: '/support/complaint' }
         ],
         tools: [
@@ -56,6 +56,7 @@ export const footerData = {
         ]
     },
     social: {
+        facebook: 'https://facebook.com/MISoft',
         twitter: 'https://twitter.com/MISoft',
         linkedin: 'https://linkedin.com/company/misoft',
         github: 'https://github.com/misoft',

@@ -136,17 +136,12 @@ const Footer = () => {
                 </div>
 
                 {/* Copyright Section */}
-                <div className="mt-8 pt-6 border-t border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500">
-                    <div className="flex flex-wrap gap-2 items-center">
-                        <p>© 2025 MISoft Inc. All rights reserved.</p>
-                        <p>Intuit, QuickBooks, QB, TurboTax, ProConnect, and Mint are registered trademarks of Intuit Inc. Terms and conditions, features, support, and service options subject to change without notice.</p>
-                    </div>
-                </div>
-
-                {/* Powered By */}
-                <div className="mt-4 text-center">
-                    <p className="text-gray-500 text-xs">
-                        Powered by <a href="https://gentleomegaai.space" className="text-gray-400 hover:text-white font-medium">Gentle Omega Holding</a>
+                <div className="mt-8 pt-6 border-t border-gray-800 text-xs text-gray-500">
+                    <p className="mb-2">© 2025 GentleOmega Inc. All rights reserved.</p>
+                    <p className="leading-relaxed">
+                        Powered by <a href="https://gentleomegaai.space" className="text-gray-400 hover:text-white font-medium">GentleOmegaHoldings</a>.
+                        MISoft, MIS, MITurboTax, MIProConnect, and Mint are registered trademarks of GentleOmega Inc.
+                        Terms and conditions, features, support, and service options subject to change without notice.
                     </p>
                 </div>
             </div>
