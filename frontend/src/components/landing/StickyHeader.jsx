@@ -39,33 +39,36 @@ const StickyHeader = () => {
                         </Link>
 
                         {/* Navigation - Desktop (Forensic Structure: Left-Aligned) */}
-                        <nav className="hidden md:flex flex-row items-center gap-6">
-                            <button
-                                className="nav-link bg-transparent border-none cursor-pointer flex items-center gap-1 text-sm font-medium hover:text-brand-primary transition-colors whitespace-nowrap"
-                                onMouseEnter={() => setMegaMenuOpen(true)}
-                                onClick={() => setMegaMenuOpen(!megaMenuOpen)}
-                            >
-                                For Business <ChevronDown size={14} className="opacity-70" />
-                            </button>
-                            <button
-                                className="nav-link bg-transparent border-none cursor-pointer flex items-center gap-1 text-sm font-medium hover:text-brand-primary transition-colors whitespace-nowrap"
-                            >
+                        <nav className="hidden md:flex flex-row items-center gap-8" onMouseLeave={() => setMegaMenuOpen(false)}>
+                            <div className="relative h-full flex items-center">
+                                <button
+                                    className="nav-link"
+                                    onMouseEnter={() => setMegaMenuOpen(true)}
+                                    // Click can toggle, but hover is primary per user request
+                                    onClick={() => setMegaMenuOpen(!megaMenuOpen)}
+                                >
+                                    For Business <ChevronDown size={14} className={`transition-transform duration-300 ${megaMenuOpen ? 'rotate-180' : ''}`} />
+                                </button>
+                                {/* Mega Menu Injection Position - aligned to parent or full width? Usually full width. */}
+                            </div>
+
+                            <button className="nav-link">
                                 Accountants <ChevronDown size={14} className="opacity-70" />
                             </button>
-                            <Link to="/resources" className="nav-link text-decoration-none text-sm font-medium hover:text-brand-primary transition-colors whitespace-nowrap">
+                            <Link to="/resources" className="nav-link text-decoration-none">
                                 Resources
                             </Link>
-                            <Link to="/pricing" className="nav-link text-decoration-none text-sm font-medium hover:text-brand-primary transition-colors whitespace-nowrap">
+                            <Link to="/pricing" className="nav-link text-decoration-none">
                                 Pricing
                             </Link>
                         </nav>
                     </div>
 
                     {/* Right Group: Utility + CTA */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                         {/* Country Selector */}
                         <button
-                            className="country-selector-btn"
+                            className="country-selector-btn text-white"
                             onClick={() => setCountryModalOpen(true)}
                         >
                             <GlobeIcon country={selectedCountry} />
@@ -73,45 +76,50 @@ const StickyHeader = () => {
                         </button>
 
                         {/* Search Icon */}
-                        <button className="hidden lg:flex items-center gap-1 bg-transparent border-none cursor-pointer text-gray-500 hover:text-brand-primary transition-colors">
+                        <button className="hidden lg:flex items-center gap-1 bg-transparent border-none cursor-pointer text-white hover:text-brand-accent-green transition-colors">
                             <Search size={18} />
                         </button>
 
                         {/* Login Dropdown */}
-                        <div className="login-dropdown-wrapper hidden md:block">
+                        <div className="login-dropdown-wrapper hidden md:block group">
                             <Link to="/login" className="nav-link font-medium flex items-center gap-1 text-decoration-none">
                                 Sign In <ChevronDown size={14} />
                             </Link>
                             <div className="glass-card login-dropdown-menu p-4 w-48 shadow-xl">
-                                <Link to="/login" className="block py-2 px-3 hover:bg-gray-50 rounded text-sm text-gray-700 text-decoration-none">QuickBooks Online</Link>
-                                <Link to="/login-payroll" className="block py-2 px-3 hover:bg-gray-50 rounded text-sm text-gray-700 text-decoration-none">Payroll</Link>
-                                <Link to="/login-pro" className="block py-2 px-3 hover:bg-gray-50 rounded text-sm text-gray-700 text-decoration-none">ProAdvisors</Link>
+                                <Link to="/login" className="block py-2 px-3 hover:bg-gray-50 rounded text-sm text-gray-700 text-decoration-none font-medium">MISoft Online</Link>
+                                <Link to="/login-payroll" className="block py-2 px-3 hover:bg-gray-50 rounded text-sm text-gray-700 text-decoration-none font-medium">Payroll</Link>
+                                <Link to="/login-pro" className="block py-2 px-3 hover:bg-gray-50 rounded text-sm text-gray-700 text-decoration-none font-medium">ProAdvisors</Link>
                             </div>
                         </div>
 
                         {/* CTA */}
                         <Link
                             to="/register"
-                            className="btn-primary"
+                            className="bg-[#15D46C] text-white font-bold rounded-full hover:bg-[#12b85e] transition-all shadow-lg"
                             style={{
-                                padding: scrolled ? '8px 16px' : '10px 24px',
-                                fontSize: scrolled ? '0.9rem' : '1rem'
+                                padding: scrolled ? '8px 20px' : '10px 24px',
+                                fontSize: '0.95rem'
                             }}
                         >
                             Start Free Trial
                         </Link>
 
                         {/* Mobile Menu Toggle */}
-                        <button className="md:hidden bg-transparent border-none text-gray-700">
+                        <button className="md:hidden bg-transparent border-none text-white">
                             <Menu size={24} />
                         </button>
                     </div>
                 </div>
             </header>
 
-            {/* Mega Menu Component - Tied to Header State */}
-            <div onMouseLeave={() => setMegaMenuOpen(false)}>
-                <MegaMenu isOpen={megaMenuOpen} />
+            {/* Mega Menu Component - Fixed Position below header */}
+            <div
+                className={`fixed left-0 w-full z-[990] transition-all duration-300 ease-in-out ${megaMenuOpen ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-4 invisible'}`}
+                style={{ top: scrolled ? '72px' : '90px' }}
+                onMouseEnter={() => setMegaMenuOpen(true)}
+                onMouseLeave={() => setMegaMenuOpen(false)}
+            >
+                <MegaMenu isOpen={true} /> {/* Always "open" internally, controlled by parent container visibility */}
             </div>
 
             {/* Country Selecor Modal */}

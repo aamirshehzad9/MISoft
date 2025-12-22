@@ -10,18 +10,20 @@
     left: 0;
     width: 100%;
     z-index: 999;
-    background: transparent;
+    background: #000000;
+    /* Dark Theme per Screenshots */
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     height: var(--header-height-normal);
 }
 
 /* Scrolled State Transformation */
 .sticky-header.scrolled {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(0, 0, 0, 0.95);
+    /* Dark Glass */
     height: var(--header-height-scrolled);
     backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(102, 126, 234, 0.1);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 /* Container Spacing for Responsiveness - Enterprise Wide */
@@ -37,6 +39,14 @@
     width: 100%;
 }
 
+/* Logo Sizing Fix */
+.sticky-header img {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+}
+
 /* Navigation Gap Controls */
 .sticky-header nav {
     gap: 2rem;
@@ -45,14 +55,29 @@
 
 /* Nav Link Transformation on Scroll */
 .nav-link {
-    /* Existing styles assumed, adding transformation logic */
     position: relative;
     font-weight: 500;
     font-size: 1rem;
-    color: var(--text-primary);
+    color: #FFFFFF;
+    /* White Text for Dark Header */
     transition: color 0.3s ease;
     white-space: nowrap;
     /* Prevent breaking */
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sticky-header.scrolled .nav-link {
+    font-size: 0.95rem;
+}
+
+.nav-link:hover {
+    color: #15D46C;
+    /* Brand Green Hover */
 }
 
 .sticky-header.scrolled .nav-link {
