@@ -4,6 +4,7 @@
     border-top: 1px solid var(--glass-border);
 }
 
+/* Conflict with Tailwind
 .footer-grid {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr;
@@ -16,6 +17,7 @@
     flex-direction: column;
     gap: var(--spacing-md);
 }
+*/
 
 .footer-logo {
     font-size: var(--font-size-2xl);

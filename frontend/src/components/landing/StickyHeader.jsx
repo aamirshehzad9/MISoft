@@ -51,8 +51,8 @@ const StickyHeader = () => {
                 <div className="container" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     {/* Left Group: Logo + Main Navigation */}
                     <div className="flex flex-row items-center gap-10">
-                        {/* Logo Section - Keeping 40px aligned WITH MARGIN */}
-                        <Link to="/" className="brand-logo-container mr-12" style={{ marginRight: '3rem' }}>
+                        {/* Logo Section - Keeping 40px aligned */}
+                        <Link to="/" className="brand-logo-container">
                             <img src={logo} alt="MISoft Logo" className="brand-logo-crafted" />
                             <span className="brand-text">MISoft</span>
                         </Link>

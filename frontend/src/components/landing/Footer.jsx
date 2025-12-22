@@ -13,7 +13,7 @@ const Footer = () => {
     return (
         <footer className="w-full bg-[#050505] text-white pt-20 pb-10 border-t border-gray-800">
             <div className="container mx-auto px-4 md:px-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-12 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-16">
                     {/* Brand Column */}
                     <div className="lg:col-span-2">
                         <Link to="/" className="flex items-center gap-3 mb-6 text-decoration-none">
