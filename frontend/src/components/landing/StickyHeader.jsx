@@ -35,7 +35,7 @@ const StickyHeader = () => {
                     <div className="flex flex-row items-center gap-10">
                         {/* Logo Section */}
                         <Link to="/" className="brand-logo-container">
-                            <img src={logo} alt="MISoft Logo" className="h-8 w-auto object-contain" />
+                            <img src={logo} alt="MISoft Logo" className="brand-logo-crafted" />
                             <span className="brand-text">MISoft</span>
                         </Link>
 
