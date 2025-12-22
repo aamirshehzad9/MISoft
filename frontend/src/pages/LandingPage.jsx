@@ -1,6 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import Header from '../components/landing/Header';
+import StickyHeader from '../components/landing/StickyHeader';
 import HeroSection from '../components/landing/HeroSection';
 import HybridDeployment from '../components/landing/HybridDeployment';
 import FeatureGrid from '../components/landing/FeatureGrid';
@@ -31,7 +31,7 @@ const LandingPage = () => {
             </Helmet>
 
             <div className="landing-page">
-                <Header />
+                <StickyHeader />
 
                 <main className="landing-main">
                     <HeroSection />

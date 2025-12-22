@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import logo from '../assets/logo.png';
 import './Login.css';
 
 const Login = () => {
@@ -38,9 +39,9 @@ const Login = () => {
             <div className="login-card">
                 <div className="login-header">
                     <div className="logo-container">
-                        <img src="/logo.png" alt="MI Industries" className="logo-image" />
+                        <img src={logo} alt="MI Industries" className="logo-image" />
                     </div>
-                    <h1>MI Industries</h1>
+                    <h1>MISoft</h1>
                     <p>Accounting & Manufacturing Software</p>
                 </div>
 

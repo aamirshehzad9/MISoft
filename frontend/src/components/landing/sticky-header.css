@@ -1,0 +1,127 @@
+/* Sticky Header Logic - Transform & Blur */
+:root {
+    --header-height-normal: 90px;
+    --header-height-scrolled: 72px;
+}
+
+.sticky-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 999;
+    background: transparent;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    height: var(--header-height-normal);
+}
+
+/* Scrolled State Transformation */
+.sticky-header.scrolled {
+    background: rgba(255, 255, 255, 0.95);
+    height: var(--header-height-scrolled);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+/* Container Spacing for Responsiveness */
+.sticky-header .container {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1400px;
+    /* Provide ample room */
+    padding: 0 2rem;
+    margin: 0 auto;
+}
+
+/* Navigation Gap Controls */
+.sticky-header nav {
+    gap: 2rem;
+    /* Ensure links don't crowd */
+}
+
+/* Nav Link Transformation on Scroll */
+.nav-link {
+    /* Existing styles assumed, adding transformation logic */
+    position: relative;
+    font-weight: 500;
+    font-size: 1rem;
+    color: var(--text-primary);
+    transition: color 0.3s ease;
+    white-space: nowrap;
+    /* Prevent breaking */
+}
+
+.sticky-header.scrolled .nav-link {
+    font-size: 0.95rem;
+    /* Slight reduction for compactness */
+}
+
+/* Right Actions Spacing */
+.sticky-header .flex.gap-4 {
+    gap: 1.5rem;
+    /* Ensure buttons don't overlap */
+}
+
+/* Country Selector Button Logic */
+.country-selector-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.sticky-header.scrolled .country-selector-btn {
+    background: rgba(102, 126, 234, 0.05);
+    /* Brand tint when scrolled */
+    border-color: rgba(102, 126, 234, 0.2);
+}
+
+/* Login Dropdown Interaction */
+.login-dropdown-wrapper {
+    position: relative;
+    z-index: 1001;
+}
+
+.login-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    padding-top: 10px;
+    /* Safe space for mouse travel */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+    min-width: 200px;
+    /* Prevent skinny dropdowns */
+}
+
+.login-dropdown-wrapper:hover .login-dropdown-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .sticky-header .container {
+        padding: 0 1rem;
+    }
+
+    .sticky-header nav {
+        gap: 1rem;
+    }
+
+    .sticky-header .nav-link {
+        font-size: 0.9rem;
+    }
+}

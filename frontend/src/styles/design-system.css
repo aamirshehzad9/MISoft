@@ -2,37 +2,54 @@
 /* MISoft Accounting Platform Theme (Matching Login Page) */
 
 :root {
-    /* PRIMARY BRAND COLORS (From Login.css) */
+    /* 
+    STRICT FORENSIC COLOR PALETTE 
+    Hybrid: QuickBooks Structure x MISoft Login Theme
+  */
+
+    /* Brand Colors - Extracted from Login Page */
     --brand-primary: #667eea;
     --brand-secondary: #764ba2;
     --brand-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --brand-accent-green: #15D46C;
+    /* QuickBooks Green for specific high-contrast actions if needed */
 
-    /* Primary Colors (for compatibility) */
-    --primary: #667eea;
-    --primary-dark: #764ba2;
-    --primary-light: #8b93f0;
+    /* Floating Orb Gradients - Exact Matches */
+    --orb-pink: linear-gradient(135deg, #f093fb, #f5576c);
+    --orb-blue: linear-gradient(135deg, #4facfe, #00f2fe);
+    --orb-yellow: linear-gradient(135deg, #fa709a, #fee140);
 
-    /* Background - Gradient Theme (From Login) */
-    --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --bg-primary: #667eea;
-    --bg-secondary: #764ba2;
+    /* Background System - "White Base" rule */
+    --bg-white: #FFFFFF;
+    --bg-light: #f9fafb;
+    /* QuickBooks light gray section background */
+    --bg-dark: #0f172a;
+    /* Fallback dark */
+    --text-primary: #1f2937;
+    /* Deep Gray for max readability on white */
+    --text-secondary: #4b5563;
+    --text-tertiary: #9ca3af;
 
-    /* Glass Effect (From Login.css - Exact Match) */
-    --glass-bg: rgba(255, 255, 255, 0.1);
-    --glass-bg-hover: rgba(255, 255, 255, 0.15);
-    --glass-border: rgba(255, 255, 255, 0.18);
+    /* Glassmorphism System - 20px Blur Standard */
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    /* Stronger opacity for readability on white */
+    --glass-bg-dark: rgba(255, 255, 255, 0.1);
+    /* For dark sections */
+    --glass-border: rgba(255, 255, 255, 0.4);
     --glass-blur: blur(20px);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    /* Softened for white bg */
 
-    /* Text Colors (Accounting-friendly, from Login) */
-    --text-primary: #ffffff;
-    --text-secondary: rgba(255, 255, 255, 0.8);
-    --text-tertiary: rgba(255, 255, 255, 0.6);
-    --text-muted: rgba(255, 255, 255, 0.5);
+    /* Spacing System */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    --spacing-2xl: 4rem;
 
-    /* Legacy compatibility */
-    --color-primary: #667eea;
-    --color-primary-dark: #764ba2;
-    --color-primary-light: #8b93f0;
+    /* Header Heights */
+    --header-height: 80px;
 
     /* Colors - Semantic */
     --color-success: #10b981;
