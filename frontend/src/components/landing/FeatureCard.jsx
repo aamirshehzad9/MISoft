@@ -1,10 +1,14 @@
-import React from 'react';
+﻿import React from 'react';
 import GlassCard from '../shared/GlassCard';
 
-const FeatureCard = ({ icon, title, description, highlights }) => {
+const FeatureCard = ({ title, description, highlights, image }) => {
     return (
         <GlassCard className="feature-card" hover>
-            <div className="feature-card-icon">{icon}</div>
+            {image && (
+                <div className="feature-card-image">
+                    <img src={image} alt={title} />
+                </div>
+            )}
             <h3 className="feature-card-title">{title}</h3>
             <p className="feature-card-description">{description}</p>
             {highlights && (
