@@ -22,21 +22,24 @@
     transform: translateY(0);
 }
 
-/* 4-Column Layout: 2 Link Cols + 2 Visual Cols */
+/* 3-Column Layout: Links + 2 Visual Cols */
 .mega-menu-grid-visual {
     display: grid;
-    grid-template-columns: 2fr 1.2fr 1.2fr;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 2.5rem 2rem;
+    grid-template-columns: auto 1fr;
+    max-width: none;
+    width: calc(100vw - 446px);
+    margin-left: 446px;
+    padding: 2rem 1.5rem;
     gap: 3rem;
 }
 
 /* Link Columns (Nested Grid) */
 .menu-links-section {
     display: grid;
-    grid-template-columns: 1.2fr 1fr;
-    gap: 3rem;
+    grid-template-columns: 200px 1fr;
+    gap: 2.5rem;
+    min-width: 600px;
+    max-width: 700px;
     border-right: 1px solid #f0f0f0;
     padding-right: 2rem;
 }
@@ -44,7 +47,16 @@
 .menu-column {
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 0.2rem;
+}
+
+.menu-column.features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.8rem;
+    row-gap: 0 !important;
+    grid-auto-flow: row;
+    width: 100%;
 }
 
 .menu-spacer {
@@ -70,6 +82,19 @@
     text-decoration: underline;
 }
 
+.persona-header {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #059669;
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+}
+
+.features-grid .persona-header {
+    grid-column: 1 / -1;
+}
+
 .new-badge {
     display: inline-block;
     background: #15D46C;
@@ -80,6 +105,40 @@
     border-radius: 4px;
     margin-bottom: 4px;
 }
+
+/* Menu Section Structure */
+.menu-section {
+    margin-bottom: 1.5rem;
+}
+
+.menu-section-heading {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1f2937;
+    text-decoration: none;
+    margin-bottom: 0.25rem;
+    line-height: 1.4;
+}
+
+.menu-section-heading:hover {
+    color: var(--brand-primary);
+    text-decoration: underline;
+}
+
+.menu-section-content {
+    font-size: 0.85rem;
+    color: #6b7280;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* NEW badge positioning for sections */
+.menu-section .new-badge {
+    display: inline-block;
+    margin-bottom: 0.25rem;
+}
+
 
 .menu-item-iconless {
     display: flex;
@@ -110,16 +169,67 @@
     display: inline-block;
 }
 
+.features-grid .persona-header {
+    grid-column: 1 / -1;
+}
+
+.features-grid .menu-item-bold {
+    grid-column: 2;
+    margin-top: 0.5rem;
+}
+
 .menu-divider {
     height: 1px;
     background: #e5e7eb;
     margin: 0.5rem 0;
 }
 
+/* Menu Items with Icons (Professional One-Tone) */
+.menu-item-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #374151;
+    text-decoration: none;
+    font-size: 0.875rem;
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: 1.2;
+    transition: all 0.2s ease;
+}
+
+
+.feature-icon {
+    color: #6b7280;
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px;
+    min-height: 16px;
+    max-width: 16px;
+    max-height: 16px;
+    display: block;
+    margin: 0 !important;
+    margin-bottom: 0 !important;
+    vertical-align: middle;
+}
+
+.menu-item-with-icon:hover {
+    color: var(--brand-primary);
+    font-weight: 500;
+}
+
+.menu-item-with-icon:hover .feature-icon {
+    color: var(--brand-primary);
+}
+
 /* Visual Cards */
 .menu-visuals-section {
     display: flex;
-    gap: 2rem;
+    gap: 1.5rem;
+    padding-left: 2rem;
+    min-width: 400px;
 }
 
 .visual-card-wrapper {
@@ -131,17 +241,29 @@
     background: #fff;
     display: flex;
     flex-direction: column;
+    min-width: 180px;
+    max-width: 250px;
 }
 
 .visual-card-wrapper:hover {
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
 }
 
-.visual-card-wrapper.bg-dark-blue {
-    background: transparent;
-    border: none;
-    padding: 0;
+.visual-card-image {
+    max-height: 160px !important;
+    height: 160px !important;
+    overflow: hidden;
 }
+
+.visual-card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    max-height: 160px !important;
+}
+
+
+/* Removed duplicate visual card rules - using rules above */
 
 .visual-card-title {
     font-size: 1rem;

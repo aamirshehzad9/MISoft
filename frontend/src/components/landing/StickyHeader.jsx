@@ -139,7 +139,7 @@ const StickyHeader = () => {
             {/* Mega Menu Component - Fixed Position below header */}
             <div
                 className={`fixed left-0 w-full z-[990] transition-all duration-300 ease-in-out ${activeMenu ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-4 invisible'}`}
-                style={{ top: scrolled ? '72px' : '90px' }}
+                style={{ top: scrolled ? '79px' : '99px' }}
                 onMouseEnter={() => { handleMenuEnter(); if (matchMedia('(min-width: 768px)').matches && activeMenu) setActiveMenu(activeMenu); }}
                 onMouseLeave={handleMouseLeave}
             >

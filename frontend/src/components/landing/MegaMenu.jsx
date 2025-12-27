@@ -70,42 +70,89 @@ const MegaMenu = ({ isOpen, activeMenu, onMouseEnter, onMouseLeave }) => {
                     <>
                         <div className="menu-links-section">
                             <div className="menu-column">
-                                <div className="persona-header">PLANS & PRICING</div>
-                                <p className="menu-subtitle">Find which plan best suits your business.</p>
-
-                                <Link to="/pricing" className="menu-item-compact">
+                                <div className="persona-header">FOR BUSINESS</div>
+                                
+                                {/* Section 1: Plans & Pricing */}
+                                <div className="menu-section">
+                                    <Link to="/pricing" className="menu-section-heading">Plans & Pricing</Link>
+                                    <p className="menu-section-content">Find which plan best suits your business.</p>
+                                </div>
+                                
+                                {/* Section 2: MISoft Advanced Online */}
+                                <div className="menu-section">
                                     <span className="new-badge">NEW</span>
-                                    <div className="menu-text-group">
-                                        <span className="menu-item-title">QuickBooks Online Advanced</span>
-                                        <span className="menu-item-description">For larger businesses with complex needs.</span>
-                                    </div>
-                                </Link>
-
-                                <div className="menu-spacer"></div>
-
-                                <div className="persona-header">HELPFUL RESOURCES</div>
-                                <Link to="/resources" className="menu-item-compact">
-                                    <span className="menu-item-title">Resources for small business owners</span>
-                                </Link>
-                                <Link to="/advisor" className="menu-item-compact">
-                                    <span className="menu-item-title">Find an Advisor</span>
-                                    <span className="menu-item-description">Find a QuickBooks Certified bookkeeper.</span>
-                                </Link>
+                                    <Link to="/advanced" className="menu-section-heading">MISoft Advanced Online</Link>
+                                    <p className="menu-section-content">For larger businesses with complex requirements and needs.</p>
+                                </div>
+                                
+                                {/* Section 3: Helpful Resources */}
+                                <div className="menu-section">
+                                    <Link to="/resources" className="menu-section-heading">Helpful Resources</Link>
+                                    <p className="menu-section-content">Resources for retailers, small medium enterprise owners.</p>
+                                </div>
+                                
+                                {/* Section 4: Find an Advisor */}
+                                <div className="menu-section">
+                                    <Link to="/advisor" className="menu-section-heading">Find an Advisor</Link>
+                                    <p className="menu-section-content">Find a MISoft Certified bookkeeper or accountant online</p>
+                                </div>
                             </div>
 
-                            <div className="menu-column">
-                                <Link to="/features/bank-feeds" className="menu-item-iconless">Bank Feeds</Link>
-                                <Link to="/features/cloud" className="menu-item-iconless">Cloud Accounting</Link>
-                                <Link to="/features/invoicing" className="menu-item-iconless">Invoicing</Link>
-                                <Link to="/features/projects" className="menu-item-iconless">Project Profitability</Link>
-                                <Link to="/features/reports" className="menu-item-iconless">Accounting Reports</Link>
-                                <Link to="/features/inventory" className="menu-item-iconless">Inventory Management</Link>
-                                <div className="menu-divider"></div>
-                                <Link to="/features/migration" className="menu-item-iconless">Data Migration</Link>
-                                <Link to="/features/gst" className="menu-item-iconless">GST & VAT Tracking</Link>
-                                <Link to="/features/expenses" className="menu-item-iconless">Expense Tracker</Link>
-                                <Link to="/mobile-app" className="menu-item-iconless">Mobile Accounting App</Link>
-                                <Link to="/apps" className="menu-item-iconless">Connect Your Apps</Link>
+
+                            <div className="menu-column features-grid">
+                                <div className="persona-header">FEATURES</div>
+                                
+                                {/* Column 1 - 6 items */}
+                                <Link to="/features/bank-feeds" className="menu-item-with-icon">
+                                    <Database size={16} className="feature-icon" />
+                                    <span>Bank Feeds</span>
+                                </Link>
+                                <Link to="/features/cloud" className="menu-item-with-icon">
+                                    <Cloud size={16} className="feature-icon" />
+                                    <span>Cloud Accounting</span>
+                                </Link>
+                                <Link to="/features/ai-invoicing" className="menu-item-with-icon">
+                                    <FileText size={16} className="feature-icon" />
+                                    <span>AI Invoicing</span>
+                                </Link>
+                                <Link to="/features/projects" className="menu-item-with-icon">
+                                    <BarChart2 size={16} className="feature-icon" />
+                                    <span>Project Profitability</span>
+                                </Link>
+                                <Link to="/features/reports" className="menu-item-with-icon">
+                                    <Layers size={16} className="feature-icon" />
+                                    <span>Accounting Reports</span>
+                                </Link>
+                                <Link to="/features/inventory" className="menu-item-with-icon">
+                                    <Briefcase size={16} className="feature-icon" />
+                                    <span>Inventory Management</span>
+                                </Link>
+                                
+                                {/* Column 2 - 6 items + See all features */}
+                                <Link to="/features/ai-reconciliation" className="menu-item-with-icon">
+                                    <Zap size={16} className="feature-icon" />
+                                    <span>AI Auto Reconciliation</span>
+                                </Link>
+                                <Link to="/features/ai-accountant" className="menu-item-with-icon">
+                                    <Users size={16} className="feature-icon" />
+                                    <span>AI Virtual Accountant</span>
+                                </Link>
+                                <Link to="/features/migration" className="menu-item-with-icon">
+                                    <Database size={16} className="feature-icon" />
+                                    <span>Data Migration</span>
+                                </Link>
+                                <Link to="/features/gst" className="menu-item-with-icon">
+                                    <CreditCard size={16} className="feature-icon" />
+                                    <span>GST & VAT Tracking</span>
+                                </Link>
+                                <Link to="/features/expenses" className="menu-item-with-icon">
+                                    <CreditCard size={16} className="feature-icon" />
+                                    <span>Expense Tracker</span>
+                                </Link>
+                                <Link to="/mobile-app" className="menu-item-with-icon">
+                                    <Globe size={16} className="feature-icon" />
+                                    <span>Mobile Accounting App</span>
+                                </Link>
                                 <Link to="/features" className="menu-item-bold">See all features</Link>
                             </div>
                         </div>
@@ -113,22 +160,22 @@ const MegaMenu = ({ isOpen, activeMenu, onMouseEnter, onMouseLeave }) => {
                         {/* Right Side: Visual Cards (For Business) */}
                         <div className="menu-visuals-section">
                             <div className="visual-card-wrapper">
-                                <div className="visual-card-image bg-gray-100 h-32 rounded-t-lg mb-3 flex items-center justify-center">
-                                    <Users size={48} className="text-gray-300" />
+                                <div className="visual-card-image rounded-t-lg mb-3 overflow-hidden" style={{height: '160px'}}>
+                                    <img 
+                                        src="/images/invoice-generator-mockup.png" 
+                                        alt="AI Invoice Generator Preview"
+                                        className="w-full h-full object-cover"
+                                    />
                                 </div>
-                                <h3 className="visual-card-title">Free Invoice Generator</h3>
-                                <p className="visual-card-text">Our free online invoice generator makes business invoicing a breeze.</p>
+                                <h3 className="visual-card-title" style={{fontWeight: 400}}>Our online AI invoice generator makes business invoicing an ease.</h3>
                             </div>
-                            <div className="visual-card-wrapper bg-dark-blue text-white">
-                                <div className="visual-card-content p-6 rounded-lg bg-[#25D366] text-white h-full flex flex-col justify-between">
-                                    <div className="icon-circle bg-white text-[#25D366] w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                                        <MessageCircle size={24} />
-                                    </div>
-                                    <div>
-                                        <h3 className="visual-card-title text-white">WhatsApp Community</h3>
-                                        <p className="visual-card-text text-white/90 mb-0">Join 5,000+ Finance Pros</p>
-                                        <p className="visual-card-text text-white/80 text-xs mt-1">Get Tips & Free Templates</p>
-                                    </div>
+                            <div className="visual-card-wrapper">
+                                <div className="visual-card-image rounded-lg overflow-hidden" style={{height: '160px'}}>
+                                    <img 
+                                        src="/images/whatsapp-contact.jpg" 
+                                        alt="Contact Us on WhatsApp"
+                                        className="w-full h-full object-cover"
+                                    />
                                 </div>
                             </div>
                         </div>
