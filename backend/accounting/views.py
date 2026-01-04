@@ -1,109 +1,613 @@
-from rest_framework import viewsets, filters, status
+"""
+Views for Accounting App
+Includes AuditLog ViewSet for audit viewer
+"""
+from rest_framework import viewsets, filters, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
-from django.utils import timezone
-from django.db.models import Sum, Q
-from .models import (FiscalYear, AccountType, ChartOfAccounts, JournalEntry, JournalEntryLine,
-                     Invoice, InvoiceItem, Payment, PaymentAllocation, BankAccount, TaxCode, AccountV2,
-                     VoucherV2)
-from .serializers import (FiscalYearSerializer, AccountTypeSerializer, ChartOfAccountsSerializer,
-                          JournalEntrySerializer, JournalEntryLineSerializer,
-                          InvoiceSerializer, InvoiceListSerializer, InvoiceItemSerializer,
-                          PaymentSerializer, PaymentAllocationSerializer,
-                          BankAccountSerializer, TaxCodeSerializer, AccountV2Serializer,
-                          VoucherV2Serializer)
-from .services import VoucherService
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter, DateTimeFilter
+from django.http import HttpResponse
+from accounting.models import (
+    AuditLog, BankStatement, BankReconciliation, AccountV2,
+    Cheque, BankTransfer, Invoice, VoucherV2
+)
+from accounting.serializers import (
+    AuditLogSerializer, BankStatementSerializer, BankReconciliationSerializer,
+    ChequeSerializer, ChequeListSerializer,
+    BankTransferSerializer, BankTransferListSerializer,
+    InvoiceSerializer, InvoiceListSerializer,
+    VoucherV2Serializer, VoucherV2ListSerializer,
+    AccountV2Serializer, AccountV2ListSerializer, AccountV2HierarchySerializer
+)
+from accounting.services.audit_service import AuditService
+from accounting.services.bank_reconciliation_service import BankReconciliationService
+from accounting.services.cheque_service import ChequeService
+from accounting.services.bank_transfer_service import BankTransferService
+import datetime
+from decimal import Decimal
 
-class FiscalYearViewSet(viewsets.ModelViewSet):
-    queryset = FiscalYear.objects.all()
-    serializer_class = FiscalYearSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['is_closed']
+# ... (Existing ViewSets) ...
 
-class AccountTypeViewSet(viewsets.ModelViewSet):
-    queryset = AccountType.objects.all()
-    serializer_class = AccountTypeSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['type_category']
+class BankStatementViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Bank Statements
+    Task 2.1.2: Reconciliation Engine
+    """
+    queryset = BankStatement.objects.all().order_by('-statement_date')
+    serializer_class = BankStatementSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
-class ChartOfAccountsViewSet(viewsets.ModelViewSet):
-    queryset = ChartOfAccounts.objects.select_related('account_type').all()
-    serializer_class = ChartOfAccountsSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['account_type', 'is_active', 'is_header']
-    search_fields = ['account_code', 'account_name']
-    ordering_fields = ['account_code', 'account_name']
-    ordering = ['account_code']
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
     
-    @action(detail=False, methods=['get'])
-    def by_type(self, request):
-        """Get accounts grouped by type"""
-        account_type = request.query_params.get('type')
-        if account_type:
-            accounts = self.queryset.filter(account_type__type_category=account_type, is_active=True)
-            serializer = self.get_serializer(accounts, many=True)
-            return Response(serializer.data)
-        return Response({'error': 'Type parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+    def get_queryset(self):
+        """Filter by bank account if provided"""
+        queryset = super().get_queryset()
+        bank_account_id = self.request.query_params.get('bank_account')
+        if bank_account_id:
+            queryset = queryset.filter(bank_account_id=bank_account_id)
+        return queryset
 
-class AccountV2ViewSet(viewsets.ModelViewSet):
-    """ViewSet for Enhanced Hierarchical Chart of Accounts"""
-    queryset = AccountV2.objects.all()
-    serializer_class = AccountV2Serializer
+    @action(detail=True, methods=['post'], url_path='auto-match')
+    def auto_match(self, request, pk=None):
+        """
+        Trigger auto-matching for this statement
+        POST /api/accounting/bank-statements/{id}/auto-match/
+        """
+        statement = self.get_object()
+        matches = BankReconciliationService.auto_match_transactions(statement)
+        return Response({
+            'message': f'Auto-matching completed. {matches} transactions matched.',
+            'matches_found': matches
+        })
+        
+    @action(detail=True, methods=['post'], url_path='post-charges')
+    def post_charges(self, request, pk=None):
+        """
+        Post bank charges
+        POST /api/accounting/bank-statements/{id}/post-charges/
+        Body: { "line_ids": [1, 2], "expense_account_id": 55 }
+        """
+        statement = self.get_object()
+        line_ids = request.data.get('line_ids', [])
+        expense_account_id = request.data.get('expense_account_id')
+        
+        if not line_ids or not expense_account_id:
+            return Response(
+                {'error': 'line_ids and expense_account_id are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            expense_account = AccountV2.objects.get(id=expense_account_id)
+            voucher = BankReconciliationService.post_bank_charges(
+                statement=statement,
+                line_ids=line_ids,
+                expense_account=expense_account,
+                user=request.user
+            )
+            
+            if voucher:
+                return Response({'message': 'Bank charges posted successfully', 'voucher_id': voucher.id})
+            else:
+                return Response({'message': 'No eligible lines found or total is zero'}, status=status.HTTP_400_BAD_REQUEST)
+                
+        except AccountV2.DoesNotExist:
+             return Response({'error': 'Expense account not found'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class BankReconciliationViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Bank Reconciliations
+    Task 2.1.2: Reconciliation Engine
+    """
+    queryset = BankReconciliation.objects.all().order_by('-reconciliation_date')
+    serializer_class = BankReconciliationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def perform_create(self, serializer):
+        serializer.save(reconciled_by=self.request.user)
+    
+    @action(detail=True, methods=['get'])
+    def summary(self, request, pk=None):
+        """
+        Get reconciliation summary statistics
+        GET /api/accounting/bank-reconciliations/{id}/summary/
+        """
+        reconciliation = self.get_object()
+        
+        outstanding_payments = BankReconciliationService.calculate_outstanding_payments(reconciliation)
+        deposits_in_transit = BankReconciliationService.calculate_deposits_in_transit(reconciliation)
+        
+        # Recalculate difference just in case
+        # Adjusted Bank Balance = Statement Balance - Outstanding Checks + Deposits in Transit
+        adjusted_bank_balance = reconciliation.statement_balance - outstanding_payments + deposits_in_transit
+        
+        # Difference = Adjusted Bank Balance - Ledger Balance
+        # Should be near zero
+        difference = adjusted_bank_balance - reconciliation.ledger_balance
+        
+        return Response({
+            'statement_balance': reconciliation.statement_balance,
+            'ledger_balance': reconciliation.ledger_balance,
+            'outstanding_payments': outstanding_payments,
+            'deposits_in_transit': deposits_in_transit,
+            'adjusted_bank_balance': adjusted_bank_balance,
+            'difference': difference,
+            'is_balanced': abs(difference) < 0.01
+        })
+
+    @action(detail=True, methods=['get'], url_path='brs-report')
+    def brs_report(self, request, pk=None):
+        """
+        Generate Bank Reconciliation Statement (BRS) Report
+        Task 2.1.3: BRS Report
+        
+        GET /api/accounting/bank-reconciliations/{id}/brs-report/
+        
+        Returns comprehensive BRS report with all reconciliation details
+        """
+        reconciliation = self.get_object()
+        report = BankReconciliationService.generate_brs_report(reconciliation)
+        return Response(report)
+
+    @action(detail=True, methods=['get'], url_path='outstanding-cheques')
+    def outstanding_cheques(self, request, pk=None):
+        """
+        Generate Outstanding Cheques Report
+        Task 2.1.3: BRS Report
+        
+        GET /api/accounting/bank-reconciliations/{id}/outstanding-cheques/
+        
+        Returns list of all checks issued but not yet cleared
+        """
+        reconciliation = self.get_object()
+        report = BankReconciliationService.generate_outstanding_cheques_report(reconciliation)
+        return Response(report)
+
+    @action(detail=True, methods=['get'], url_path='deposits-in-transit')
+    def deposits_in_transit(self, request, pk=None):
+        """
+        Generate Deposits in Transit Report
+        Task 2.1.3: BRS Report
+        
+        GET /api/accounting/bank-reconciliations/{id}/deposits-in-transit/
+        
+        Returns list of all deposits recorded but not yet in bank statement
+        """
+        reconciliation = self.get_object()
+        report = BankReconciliationService.generate_deposits_in_transit_report(reconciliation)
+        return Response(report)
+
+
+
+class AuditLogPagination(PageNumberPagination):
+    """Pagination class for audit logs"""
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+
+class AuditLogFilter(FilterSet):
+    """
+    Filter class for AuditLog
+    Supports filtering by model, user, action, object_id, and date range
+    """
+    model_name = CharFilter(field_name='model_name', lookup_expr='iexact')
+    user = NumberFilter(field_name='user__id')
+    action = CharFilter(field_name='action', lookup_expr='iexact')
+    object_id = NumberFilter(field_name='object_id')
+    start_date = DateTimeFilter(field_name='timestamp', lookup_expr='gte')
+    end_date = DateTimeFilter(field_name='timestamp', lookup_expr='lte')
+    
+    class Meta:
+        model = AuditLog
+        fields = ['model_name', 'user', 'action', 'object_id', 'start_date', 'end_date']
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing audit logs
+    Task 1.7.3: Audit Viewer UI
+    
+    Provides read-only access to audit logs with filtering and search
+    
+    Endpoints:
+        GET /api/accounting/audit-logs/              - List with filters
+        GET /api/accounting/audit-logs/{id}/         - Detail view
+        GET /api/accounting/audit-logs/export-pdf/   - Export to PDF
+    
+    Query Parameters:
+        - model_name: Filter by model name
+        - user: Filter by user ID
+        - action: Filter by CREATE/UPDATE/DELETE
+        - object_id: Filter by specific object
+        - start_date: Filter from date (ISO format)
+        - end_date: Filter to date (ISO format)
+        - search: Search in changes field
+        - page: Page number
+        - page_size: Items per page
+    """
+    queryset = AuditLog.objects.select_related('user').all()
+    serializer_class = AuditLogSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = AuditLogPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['account_type', 'account_group', 'is_group', 'is_active', 'parent']
-    search_fields = ['code', 'name']
-    ordering_fields = ['code', 'name']
-    ordering = ['code']
+    filterset_class = AuditLogFilter
+    search_fields = ['model_name', 'changes', 'reason']
+    ordering_fields = ['timestamp', 'model_name', 'action']
+    ordering = ['-timestamp']  # Newest first by default
+    
+    # Disable create, update, delete (read-only)
+    http_method_names = ['get', 'head', 'options']
+    
+    @action(detail=False, methods=['get'], url_path='export-pdf')
+    def export_pdf(self, request):
+        """
+        Export audit logs to PDF
+        
+        GET /api/accounting/audit-logs/export-pdf/
+        
+        Applies the same filters as the list view
+        Returns a PDF file with audit log report
+        """
+        # Get filtered queryset
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # For now, return a simple response
+        # TODO: Implement actual PDF generation
+        return Response({
+            'message': 'PDF export functionality',
+            'total_records': queryset.count(),
+            'note': 'PDF generation to be implemented'
+        }, status=status.HTTP_200_OK)
+    @action(detail=False, methods=['get'], url_path='user-activity-report')
+    def user_activity_report(self, request):
+        """
+        Generate user activity report
+        
+        GET /api/accounting/audit-logs/user-activity-report/
+        """
+        user_id = request.query_params.get('user')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        report = AuditService.generate_user_activity_report(
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        return Response(report)
 
-    @action(detail=False, methods=['get'])
-    def hierarchy(self, request):
-        """Get accounts in a flat list optimized for hierarchy building"""
-        accounts = self.queryset.filter(is_active=True).order_by('code')
-        serializer = self.get_serializer(accounts, many=True)
-        return Response(serializer.data)
+    @action(detail=False, methods=['get'], url_path='change-history-report')
+    def change_history_report(self, request):
+        """
+        Generate change history report
+        
+        GET /api/accounting/audit-logs/change-history-report/
+        """
+        model_name = request.query_params.get('model_name')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        report = AuditService.generate_change_history_report(
+            model_name=model_name,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        return Response(report)
 
-class JournalEntryViewSet(viewsets.ModelViewSet):
-    queryset = JournalEntry.objects.select_related('fiscal_year').prefetch_related('lines').all()
-    serializer_class = JournalEntrySerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['entry_type', 'status', 'fiscal_year']
-    search_fields = ['entry_number', 'reference_number', 'description']
-    ordering_fields = ['entry_date', 'entry_number']
-    ordering = ['-entry_date']
+        return Response(report)
+
+    @action(detail=False, methods=['get'], url_path='object-history-report')
+    def object_history_report(self, request):
+        """
+        Generate audit trail report for a specific object
+        
+        GET /api/accounting/audit-logs/object-history-report/?model_name=X&object_id=Y
+        """
+        model_name = request.query_params.get('model_name')
+        object_id = request.query_params.get('object_id')
+        
+        if not model_name or not object_id:
+            return Response(
+                {'error': 'model_name and object_id are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        report = AuditService.generate_object_audit_report(
+            model_name=model_name,
+            object_id=object_id
+        )
+        return Response(report)
+
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """
+        Get complete history for a specific object
+        
+        GET /api/accounting/audit-logs/{id}/history/
+        
+        Returns all audit logs for the same model and object_id
+        """
+        audit_log = self.get_object()
+        
+        # Get all logs for this object
+        history = AuditLog.objects.filter(
+            model_name=audit_log.model_name,
+            object_id=audit_log.object_id
+        ).select_related('user').order_by('-timestamp')
+        
+        serializer = self.get_serializer(history, many=True)
+        
+        return Response({
+            'model_name': audit_log.model_name,
+            'object_id': audit_log.object_id,
+            'total_changes': history.count(),
+            'history': serializer.data
+        })
+
+
+# ============================================================================
+# MODULE 2.2: CHEQUE MANAGEMENT SYSTEM - API VIEWSETS
+# ============================================================================
+
+class ChequeViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Cheque Management
+    Module 2.2: Cheque Management System
+    
+    Endpoints:
+        GET    /api/accounting/cheques/              - List cheques
+        POST   /api/accounting/cheques/              - Create cheque
+        GET    /api/accounting/cheques/{id}/         - Get cheque details
+        PUT    /api/accounting/cheques/{id}/         - Update cheque
+        DELETE /api/accounting/cheques/{id}/         - Delete cheque
+        POST   /api/accounting/cheques/{id}/clear/   - Clear cheque
+        POST   /api/accounting/cheques/{id}/cancel/  - Cancel cheque
+        GET    /api/accounting/cheques/{id}/print/   - Print cheque (PDF)
+        GET    /api/accounting/cheques/post-dated/   - Get post-dated cheques
+    """
+    queryset = Cheque.objects.all().select_related('bank_account', 'payee', 'voucher', 'created_by').order_by('-cheque_date')
+    permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ChequeListSerializer
+        return ChequeSerializer
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
     
-    @action(detail=True, methods=['post'])
-    def post_entry(self, request, pk=None):
-        """Post journal entry"""
-        entry = self.get_object()
-        if entry.status == 'draft':
-            if entry.is_balanced:
-                entry.status = 'posted'
-                entry.posted_date = timezone.now()
-                entry.save()
-                return Response({'message': 'Entry posted successfully'})
-            return Response({'error': 'Entry is not balanced'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({'error': 'Entry is not in draft status'}, status=status.HTTP_400_BAD_REQUEST)
+    def get_queryset(self):
+        """Filter by status, date range, etc."""
+        queryset = super().get_queryset()
+        status_filter = self.request.query_params.get('status')
+        is_post_dated = self.request.query_params.get('is_post_dated')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if is_post_dated:
+            queryset = queryset.filter(is_post_dated=is_post_dated.lower() == 'true')
+        
+        return queryset
     
     @action(detail=True, methods=['post'])
-    def cancel_entry(self, request, pk=None):
-        """Cancel journal entry"""
-        entry = self.get_object()
-        if entry.status == 'posted':
-            entry.status = 'cancelled'
-            entry.save()
-            return Response({'message': 'Entry cancelled'})
-        return Response({'error': 'Only posted entries can be cancelled'}, status=status.HTTP_400_BAD_REQUEST)
+    def clear(self, request, pk=None):
+        """
+        Clear a cheque
+        POST /api/accounting/cheques/{id}/clear/
+        Body: { "clearance_date": "2025-01-20" }
+        """
+        cheque = self.get_object()
+        clearance_date_str = request.data.get('clearance_date')
+        
+        if not clearance_date_str:
+            return Response(
+                {'error': 'clearance_date is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            clearance_date = datetime.datetime.strptime(clearance_date_str, '%Y-%m-%d').date()
+            cleared_cheque = ChequeService.clear_cheque(cheque, clearance_date)
+            serializer = self.get_serializer(cleared_cheque)
+            return Response(serializer.data)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """
+        Cancel a cheque
+        POST /api/accounting/cheques/{id}/cancel/
+        Body: { "cancelled_date": "2025-01-18", "cancellation_reason": "Payment terms changed" }
+        """
+        cheque = self.get_object()
+        cancelled_date_str = request.data.get('cancelled_date')
+        cancellation_reason = request.data.get('cancellation_reason')
+        
+        if not cancelled_date_str or not cancellation_reason:
+            return Response(
+                {'error': 'cancelled_date and cancellation_reason are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            cancelled_date = datetime.datetime.strptime(cancelled_date_str, '%Y-%m-%d').date()
+            cancelled_cheque = ChequeService.cancel_cheque(cheque, cancelled_date, cancellation_reason)
+            serializer = self.get_serializer(cancelled_cheque)
+            return Response(serializer.data)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def print(self, request, pk=None):
+        """
+        Print cheque as PDF
+        GET /api/accounting/cheques/{id}/print/
+        """
+        cheque = self.get_object()
+        pdf_buffer = ChequeService.print_cheque(cheque)
+        
+        response = HttpResponse(pdf_buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="cheque_{cheque.cheque_number}.pdf"'
+        return response
+    
+    @action(detail=False, methods=['get'], url_path='post-dated')
+    def post_dated(self, request):
+        """
+        Get all post-dated cheques
+        GET /api/accounting/cheques/post-dated/
+        """
+        cheques = ChequeService.get_post_dated_cheques()
+        serializer = ChequeListSerializer(cheques, many=True)
+        return Response(serializer.data)
+
+
+# ============================================================================
+# MODULE 2.3: BANK TRANSFER SYSTEM - API VIEWSETS
+# ============================================================================
+
+class BankTransferViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Bank Transfer Management
+    Module 2.3: Bank Transfer System
+    
+    Endpoints:
+        GET    /api/accounting/bank-transfers/                - List transfers
+        POST   /api/accounting/bank-transfers/                - Create transfer
+        GET    /api/accounting/bank-transfers/{id}/           - Get transfer details
+        PUT    /api/accounting/bank-transfers/{id}/           - Update transfer
+        DELETE /api/accounting/bank-transfers/{id}/           - Delete transfer
+        POST   /api/accounting/bank-transfers/{id}/approve/   - Approve transfer
+        POST   /api/accounting/bank-transfers/{id}/reject/    - Reject transfer
+        POST   /api/accounting/bank-transfers/{id}/execute/   - Execute transfer
+        GET    /api/accounting/bank-transfers/pending/        - Get pending transfers
+    """
+    queryset = BankTransfer.objects.all().select_related(
+        'from_bank', 'to_bank', 'from_currency', 'to_currency', 'voucher', 'created_by'
+    ).order_by('-transfer_date')
+    permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return BankTransferListSerializer
+        return BankTransferSerializer
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    def get_queryset(self):
+        """Filter by status, approval status, etc."""
+        queryset = super().get_queryset()
+        status_filter = self.request.query_params.get('status')
+        approval_status_filter = self.request.query_params.get('approval_status')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if approval_status_filter:
+            queryset = queryset.filter(approval_status=approval_status_filter)
+        
+        return queryset
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """
+        Approve a transfer
+        POST /api/accounting/bank-transfers/{id}/approve/
+        """
+        transfer = self.get_object()
+        
+        try:
+            approved_transfer = BankTransferService.approve_transfer(transfer, request.user)
+            serializer = self.get_serializer(approved_transfer)
+            return Response(serializer.data)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """
+        Reject a transfer
+        POST /api/accounting/bank-transfers/{id}/reject/
+        """
+        transfer = self.get_object()
+        
+        try:
+            rejected_transfer = BankTransferService.reject_transfer(transfer, request.user)
+            serializer = self.get_serializer(rejected_transfer)
+            return Response(serializer.data)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def execute(self, request, pk=None):
+        """
+        Execute a transfer (creates voucher)
+        POST /api/accounting/bank-transfers/{id}/execute/
+        Body: { "fx_account_id": 123 } (optional, for multi-currency)
+        """
+        transfer = self.get_object()
+        fx_account_id = request.data.get('fx_account_id')
+        fx_account = None
+        
+        if fx_account_id:
+            try:
+                fx_account = AccountV2.objects.get(id=fx_account_id)
+            except AccountV2.DoesNotExist:
+                return Response(
+                    {'error': 'FX account not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        try:
+            executed_transfer = BankTransferService.execute_transfer(transfer, request.user, fx_account)
+            serializer = self.get_serializer(executed_transfer)
+            return Response(serializer.data)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['get'])
+    def pending(self, request):
+        """
+        Get all pending transfers
+        GET /api/accounting/bank-transfers/pending/
+        """
+        transfers = BankTransferService.get_pending_transfers()
+        serializer = BankTransferListSerializer(transfers, many=True)
+        return Response(serializer.data)
+
+# ============================================================================
+# INVOICE VIEWSET - LEGACY MODEL
+# ============================================================================
 
 class InvoiceViewSet(viewsets.ModelViewSet):
-    queryset = Invoice.objects.select_related('partner').prefetch_related('items').all()
+    """
+    ViewSet for Invoice Management (Legacy)
+    Supports Sales and Purchase Invoices
+    
+    Endpoints:
+        GET    /api/accounting/invoices/              - List invoices
+        POST   /api/accounting/invoices/              - Create invoice
+        GET    /api/accounting/invoices/{id}/         - Get invoice details
+        PUT    /api/accounting/invoices/{id}/         - Update invoice
+        DELETE /api/accounting/invoices/{id}/         - Delete invoice
+    """
+    queryset = Invoice.objects.all().select_related('partner', 'created_by', 'journal_entry').prefetch_related('items').order_by('-invoice_date')
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['invoice_type', 'status', 'partner']
     search_fields = ['invoice_number', 'partner__name', 'reference_number']
-    ordering_fields = ['invoice_date', 'invoice_number', 'total_amount']
+    ordering_fields = ['invoice_date', 'due_date', 'total_amount', 'created_at']
     ordering = ['-invoice_date']
     
     def get_serializer_class(self):
@@ -114,114 +618,798 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
     
-    @action(detail=False, methods=['get'])
-    def sales_invoices(self, request):
-        """Get sales invoices"""
-        invoices = self.queryset.filter(invoice_type='sales')
-        serializer = InvoiceListSerializer(invoices, many=True)
-        return Response(serializer.data)
-    
-    @action(detail=False, methods=['get'])
-    def purchase_invoices(self, request):
-        """Get purchase invoices"""
-        invoices = self.queryset.filter(invoice_type='purchase')
-        serializer = InvoiceListSerializer(invoices, many=True)
-        return Response(serializer.data)
-    
-    @action(detail=False, methods=['get'])
-    def overdue(self, request):
-        """Get overdue invoices"""
-        today = timezone.now().date()
-        invoices = self.queryset.filter(
-            due_date__lt=today,
-            status__in=['submitted', 'partially_paid']
-        ).exclude(paid_amount__gte=models.F('total_amount'))
-        serializer = InvoiceListSerializer(invoices, many=True)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['post'])
-    def submit_invoice(self, request, pk=None):
-        """Submit invoice"""
-        invoice = self.get_object()
-        if invoice.status == 'draft':
-            invoice.status = 'submitted'
-            invoice.save()
-            return Response({'message': 'Invoice submitted'})
-        return Response({'error': 'Invoice is not in draft status'}, status=status.HTTP_400_BAD_REQUEST)
+    def get_queryset(self):
+        """Filter by invoice type, status, partner, date range"""
+        queryset = super().get_queryset()
+        invoice_type = self.request.query_params.get('invoice_type')
+        status_filter = self.request.query_params.get('status')
+        partner_id = self.request.query_params.get('partner')
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        
+        if invoice_type:
+            queryset = queryset.filter(invoice_type=invoice_type)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if partner_id:
+            queryset = queryset.filter(partner_id=partner_id)
+        if start_date:
+            queryset = queryset.filter(invoice_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(invoice_date__lte=end_date)
+        
+        return queryset
 
-class PaymentViewSet(viewsets.ModelViewSet):
-    queryset = Payment.objects.select_related('partner', 'bank_account').prefetch_related('allocations').all()
-    serializer_class = PaymentSerializer
+
+# ============================================================================
+# VOUCHER V2 VIEWSET - ENHANCED MODEL
+# ============================================================================
+
+class VoucherV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for VoucherV2 Management (Enhanced)
+    Universal voucher for all accounting transactions
+    
+    Endpoints:
+        GET    /api/accounting/vouchers-v2/              - List vouchers
+        POST   /api/accounting/vouchers-v2/              - Create voucher
+        GET    /api/accounting/vouchers-v2/{id}/         - Get voucher details
+        PUT    /api/accounting/vouchers-v2/{id}/         - Update voucher
+        DELETE /api/accounting/vouchers-v2/{id}/         - Delete voucher
+        POST   /api/accounting/vouchers-v2/{id}/post/    - Post voucher
+    """
+    queryset = VoucherV2.objects.all().select_related('party', 'currency', 'created_by', 'approved_by').prefetch_related('entries_v2').order_by('-voucher_date')
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['payment_type', 'payment_mode', 'partner']
-    search_fields = ['payment_number', 'partner__name', 'reference_number']
-    ordering_fields = ['payment_date', 'payment_number', 'amount']
-    ordering = ['-payment_date']
+    search_fields = ['voucher_number', 'party__name', 'reference_number', 'narration']
+    ordering_fields = ['voucher_date', 'total_amount', 'created_at']
+    ordering = ['-voucher_date']
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return VoucherV2ListSerializer
+        return VoucherV2Serializer
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
     
-    @action(detail=False, methods=['get'])
-    def receipts(self, request):
-        """Get all receipts"""
-        receipts = self.queryset.filter(payment_type='receipt')
-        serializer = self.get_serializer(receipts, many=True)
-        return Response(serializer.data)
+    def get_queryset(self):
+        """Filter by voucher type, status, party, date range"""
+        queryset = super().get_queryset()
+        voucher_type = self.request.query_params.get('voucher_type')
+        status_filter = self.request.query_params.get('status')
+        party_id = self.request.query_params.get('party')
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        
+        if voucher_type:
+            queryset = queryset.filter(voucher_type=voucher_type)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if party_id:
+            queryset = queryset.filter(party_id=party_id)
+        if start_date:
+            queryset = queryset.filter(voucher_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(voucher_date__lte=end_date)
+        
+        return queryset
     
-    @action(detail=False, methods=['get'])
-    def payments_made(self, request):
-        """Get all payments made"""
-        payments = self.queryset.filter(payment_type='payment')
-        serializer = self.get_serializer(payments, many=True)
-        return Response(serializer.data)
-
-class BankAccountViewSet(viewsets.ModelViewSet):
-    queryset = BankAccount.objects.select_related('gl_account').all()
-    serializer_class = BankAccountSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['is_active', 'currency']
-    search_fields = ['account_name', 'account_number', 'bank_name', 'iban']
-    
-    @action(detail=True, methods=['get'])
-    def transactions(self, request, pk=None):
-        """Get bank account transactions"""
-        bank_account = self.get_object()
-        transactions = Payment.objects.filter(bank_account=bank_account).order_by('-payment_date')
-        serializer = PaymentSerializer(transactions, many=True)
-        return Response(serializer.data)
-
-class TaxCodeViewSet(viewsets.ModelViewSet):
-    queryset = TaxCode.objects.select_related('sales_tax_account', 'purchase_tax_account').all()
-    serializer_class = TaxCodeSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['is_active']
-    search_fields = ['code', 'description']
-
-class VoucherV2ViewSet(viewsets.ModelViewSet):
-    """ViewSet for Double-Entry Vouchers (V2)"""
-    queryset = VoucherV2.objects.select_related('party', 'currency', 'created_by', 'approved_by').prefetch_related('entries_v2__account').all()
-    serializer_class = VoucherV2Serializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['voucher_type', 'status', 'voucher_date']
-    search_fields = ['voucher_number', 'reference_number', 'narration']
-    ordering_fields = ['voucher_date', 'voucher_number']
-    ordering = ['-voucher_date']
-    
-    def create(self, request, *args, **kwargs):
-        """Create voucher via service"""
-        try:
-            voucher = VoucherService.create_voucher(request.data, user=request.user)
-            serializer = self.get_serializer(voucher)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
     @action(detail=True, methods=['post'])
     def post(self, request, pk=None):
-        """Post voucher via service"""
-        try:
-            voucher = VoucherService.post_voucher(pk, user=request.user)
-            serializer = self.get_serializer(voucher)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        """
+        Post a voucher (change status from draft to posted)
+        POST /api/accounting/vouchers-v2/{id}/post/
+        """
+        voucher = self.get_object()
+        
+        if voucher.status != 'draft':
+            return Response(
+                {'error': 'Only draft vouchers can be posted'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # TODO: Implement balance validation and posting logic
+        voucher.status = 'posted'
+        voucher.approved_by = request.user
+        voucher.save()
+        
+        serializer = self.get_serializer(voucher)
+        return Response(serializer.data)
+
+
+# ============================================================================
+# ACCOUNT V2 VIEWSET - ENHANCED CHART OF ACCOUNTS
+# ============================================================================
+
+class AccountV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for AccountV2 Management (Enhanced)
+    Hierarchical Chart of Accounts with IFRS compliance
+    
+    Endpoints:
+        GET    /api/accounting/accounts-v2/                - List accounts
+        POST   /api/accounting/accounts-v2/                - Create account
+        GET    /api/accounting/accounts-v2/{id}/           - Get account details
+        PUT    /api/accounting/accounts-v2/{id}/           - Update account
+        DELETE /api/accounting/accounts-v2/{id}/           - Delete account
+        GET    /api/accounting/accounts-v2/hierarchy/      - Get hierarchical tree
+    """
+    queryset = AccountV2.objects.all().select_related('parent', 'created_by').order_by('code')
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['code', 'name', 'description']
+    ordering_fields = ['code', 'name', 'account_type', 'current_balance']
+    ordering = ['code']
+    
+    def get_serializer_class(self):
+        if self.action == 'hierarchy':
+            return AccountV2HierarchySerializer
+        elif self.action == 'list':
+            return AccountV2ListSerializer
+        return AccountV2Serializer
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    def get_queryset(self):
+        """Filter by account type, parent, is_active, is_group"""
+        queryset = super().get_queryset()
+        account_type = self.request.query_params.get('account_type')
+        parent_id = self.request.query_params.get('parent')
+        is_active = self.request.query_params.get('is_active')
+        is_group = self.request.query_params.get('is_group')
+        
+        if account_type:
+            queryset = queryset.filter(account_type=account_type)
+        if parent_id:
+            queryset = queryset.filter(parent_id=parent_id)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        if is_group is not None:
+            queryset = queryset.filter(is_group=is_group.lower() == 'true')
+        
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def hierarchy(self, request):
+        """
+        Get hierarchical tree structure of accounts
+        GET /api/accounting/accounts-v2/hierarchy/
+        
+        Returns root accounts with nested children
+        """
+        # Get only root accounts (no parent)
+        root_accounts = self.get_queryset().filter(parent__isnull=True, is_active=True)
+        serializer = self.get_serializer(root_accounts, many=True)
+        return Response(serializer.data)
+
+# ============================================
+# FIXED ASSET VIEWSETS (IAS 16 Compliance)
+# ============================================
+# Module 3.1: Fixed Asset Register
+# Task 3.1.2: Asset Acquisition Form
+
+from accounting.models import AssetCategory, FixedAsset
+from accounting.serializers import (
+    AssetCategorySerializer, FixedAssetSerializer, FixedAssetListSerializer
+)
+from django_filters.rest_framework import DjangoFilterBackend
+
+
+class AssetCategoryViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for AssetCategory
+    IAS 16: Asset classification management
+    
+    Provides CRUD operations for asset categories with depreciation parameters
+    """
+    queryset = AssetCategory.objects.all().select_related('created_by').order_by('category_code')
+    serializer_class = AssetCategorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = PageNumberPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'depreciation_method']
+    search_fields = ['category_code', 'category_name', 'description']
+    ordering_fields = ['category_code', 'category_name', 'useful_life_years', 'created_at']
+    ordering = ['category_code']
+    
+    def perform_create(self, serializer):
+        """Set created_by to current user"""
+        serializer.save(created_by=self.request.user)
+
+
+class FixedAssetViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for FixedAsset
+    IAS 16: Property, Plant and Equipment
+    
+    Provides CRUD operations for fixed assets with:
+    - Asset acquisition workflow
+    - Asset tagging and numbering
+    - Location tracking
+    - Purchase voucher linking
+    - Book value calculation
+    """
+    queryset = FixedAsset.objects.all().select_related(
+        'asset_category', 'gl_account', 'created_by'
+    ).order_by('-asset_number')
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = PageNumberPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'asset_category', 'location']
+    search_fields = ['asset_number', 'asset_name', 'asset_tag', 'location']
+    ordering_fields = [
+        'asset_number', 'asset_name', 'acquisition_date', 
+        'acquisition_cost', 'status', 'created_at'
+    ]
+    ordering = ['-asset_number']
+    
+    def get_serializer_class(self):
+        """Use optimized serializer for list view"""
+        if self.action == 'list':
+            return FixedAssetListSerializer
+        return FixedAssetSerializer
+    
+    def perform_create(self, serializer):
+        """Set created_by to current user"""
+        serializer.save(created_by=self.request.user)
+    
+    def get_queryset(self):
+        """
+        Optionally filter assets by additional parameters
+        """
+        queryset = super().get_queryset()
+        
+        # Filter by acquisition date range
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        
+        if start_date:
+            queryset = queryset.filter(acquisition_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(acquisition_date__lte=end_date)
+        
+        return queryset
+    
+    @action(detail=True, methods=['post'])
+    def dispose(self, request, pk=None):
+        """
+        Dispose an asset
+        IAS 16.67-72: Derecognition
+        
+        Requires disposal_date and disposal_amount
+        Calculates gain/loss on disposal
+        """
+        asset = self.get_object()
+        
+        disposal_date = request.data.get('disposal_date')
+        disposal_amount = request.data.get('disposal_amount')
+        
+        if not disposal_date or disposal_amount is None:
+            return Response(
+                {'error': 'disposal_date and disposal_amount are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        asset.status = 'disposed'
+        asset.disposal_date = disposal_date
+        asset.disposal_amount = Decimal(str(disposal_amount))
+        asset.save()
+        
+        gain_loss = asset.calculate_gain_loss_on_disposal()
+        
+        serializer = self.get_serializer(asset)
+        return Response({
+            'asset': serializer.data,
+            'gain_loss': gain_loss,
+            'message': f'Asset disposed. {"Gain" if gain_loss > 0 else "Loss"}: {abs(gain_loss)}'
+        })
+    
+    @action(detail=False, methods=['get'])
+    def by_location(self, request):
+        """
+        Get assets grouped by location
+        Useful for location-based asset tracking
+        """
+        from django.db.models import Count, Sum
+        
+        locations = FixedAsset.objects.values('location').annotate(
+            count=Count('id'),
+            total_cost=Sum('acquisition_cost'),
+            total_depreciation=Sum('accumulated_depreciation')
+        ).order_by('location')
+        
+        return Response(locations)
+    
+    @action(detail=False, methods=['get'])
+    def by_category(self, request):
+        """
+        Get assets grouped by category
+        Useful for category-based reporting
+        """
+        from django.db.models import Count, Sum
+        
+        categories = FixedAsset.objects.values(
+            'asset_category__category_code',
+            'asset_category__category_name'
+        ).annotate(
+            count=Count('id'),
+            total_cost=Sum('acquisition_cost'),
+            total_depreciation=Sum('accumulated_depreciation')
+        ).order_by('asset_category__category_code')
+        
+        return Response(categories)
+
+# ============================================
+# ASSET REPORTS (IAS 16 Compliance)
+# ============================================
+# Module 3.1: Fixed Asset Register
+# Task 3.1.3: Asset Reports
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Sum, Count, Q
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def fixed_asset_register_report(request):
+    """
+    Fixed Asset Register (FAR) Report
+    IAS 16: Complete listing of all fixed assets with book values
+    
+    Query Parameters:
+    - status: Filter by asset status (active, disposed, etc.)
+    - category: Filter by asset category ID
+    - start_date: Filter by acquisition date (from)
+    - end_date: Filter by acquisition date (to)
+    """
+    # Get query parameters
+    status_filter = request.query_params.get('status')
+    category_filter = request.query_params.get('category')
+    start_date = request.query_params.get('start_date')
+    end_date = request.query_params.get('end_date')
+    
+    # Build queryset
+    queryset = FixedAsset.objects.select_related(
+        'asset_category', 'gl_account'
+    ).all()
+    
+    # Apply filters
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+    if category_filter:
+        queryset = queryset.filter(asset_category_id=category_filter)
+    if start_date:
+        queryset = queryset.filter(acquisition_date__gte=start_date)
+    if end_date:
+        queryset = queryset.filter(acquisition_date__lte=end_date)
+    
+    # Order by asset number
+    queryset = queryset.order_by('asset_number')
+    
+    # Build asset list
+    assets = []
+    for asset in queryset:
+        assets.append({
+            'asset_number': asset.asset_number,
+            'asset_name': asset.asset_name,
+            'category_code': asset.asset_category.category_code,
+            'category_name': asset.asset_category.category_name,
+            'acquisition_date': asset.acquisition_date,
+            'acquisition_cost': str(asset.acquisition_cost),
+            'accumulated_depreciation': str(asset.accumulated_depreciation),
+            'book_value': str(asset.book_value),
+            'location': asset.location,
+            'asset_tag': asset.asset_tag,
+            'status': asset.status,
+        })
+    
+    # Calculate summary totals
+    aggregates = queryset.aggregate(
+        total_acquisition_cost=Sum('acquisition_cost'),
+        total_accumulated_depreciation=Sum('accumulated_depreciation'),
+        total_assets=Count('id')
+    )
+    
+    # Calculate total book value
+    total_book_value = Decimal('0.00')
+    if aggregates['total_acquisition_cost'] and aggregates['total_accumulated_depreciation']:
+        total_book_value = aggregates['total_acquisition_cost'] - aggregates['total_accumulated_depreciation']
+    
+    summary = {
+        'total_assets': aggregates['total_assets'] or 0,
+        'total_acquisition_cost': str(aggregates['total_acquisition_cost'] or Decimal('0.00')),
+        'total_accumulated_depreciation': str(aggregates['total_accumulated_depreciation'] or Decimal('0.00')),
+        'total_book_value': str(total_book_value),
+    }
+    
+    return Response({
+        'assets': assets,
+        'summary': summary,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def assets_by_category_report(request):
+    """
+    Assets by Category Report
+    IAS 16: Grouping of assets by category with totals
+    
+    Shows asset count and financial totals for each category
+    """
+    # Get all categories with assets
+    categories_data = FixedAsset.objects.values(
+        'asset_category__id',
+        'asset_category__category_code',
+        'asset_category__category_name'
+    ).annotate(
+        asset_count=Count('id'),
+        total_acquisition_cost=Sum('acquisition_cost'),
+        total_accumulated_depreciation=Sum('accumulated_depreciation')
+    ).order_by('asset_category__category_code')
+    
+    # Build category list with book values
+    categories = []
+    total_assets = 0
+    
+    for cat in categories_data:
+        book_value = Decimal('0.00')
+        if cat['total_acquisition_cost'] and cat['total_accumulated_depreciation']:
+            book_value = cat['total_acquisition_cost'] - cat['total_accumulated_depreciation']
+        
+        categories.append({
+            'category_id': cat['asset_category__id'],
+            'category_code': cat['asset_category__category_code'],
+            'category_name': cat['asset_category__category_name'],
+            'asset_count': cat['asset_count'],
+            'total_acquisition_cost': str(cat['total_acquisition_cost'] or Decimal('0.00')),
+            'total_accumulated_depreciation': str(cat['total_accumulated_depreciation'] or Decimal('0.00')),
+            'total_book_value': str(book_value),
+        })
+        
+        total_assets += cat['asset_count']
+    
+    summary = {
+        'total_categories': len(categories),
+        'total_assets': total_assets,
+    }
+    
+    return Response({
+        'categories': categories,
+        'summary': summary,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def assets_by_location_report(request):
+    """
+    Assets by Location Report
+    IAS 16: Grouping of assets by physical location with totals
+    
+    Shows asset count and financial totals for each location
+    """
+    # Get all locations with assets
+    locations_data = FixedAsset.objects.values('location').annotate(
+        asset_count=Count('id'),
+        total_acquisition_cost=Sum('acquisition_cost'),
+        total_accumulated_depreciation=Sum('accumulated_depreciation')
+    ).order_by('location')
+    
+    # Build location list with book values
+    locations = []
+    total_assets = 0
+    
+    for loc in locations_data:
+        book_value = Decimal('0.00')
+        if loc['total_acquisition_cost'] and loc['total_accumulated_depreciation']:
+            book_value = loc['total_acquisition_cost'] - loc['total_accumulated_depreciation']
+        
+        locations.append({
+            'location': loc['location'],
+            'asset_count': loc['asset_count'],
+            'total_acquisition_cost': str(loc['total_acquisition_cost'] or Decimal('0.00')),
+            'total_accumulated_depreciation': str(loc['total_accumulated_depreciation'] or Decimal('0.00')),
+            'total_book_value': str(book_value),
+        })
+        
+        total_assets += loc['asset_count']
+    
+    summary = {
+        'total_locations': len(locations),
+        'total_assets': total_assets,
+    }
+    
+    return Response({
+        'locations': locations,
+        'summary': summary,
+    })
+
+
+# ============================================================================
+# FISCAL YEAR VIEWSET
+# ============================================================================
+
+from accounting.models import FiscalYear
+from accounting.serializers import FiscalYearSerializer
+
+class FiscalYearViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Fiscal Year Management
+    Provides CRUD operations for fiscal years
+    """
+    queryset = FiscalYear.objects.all()
+    serializer_class = FiscalYearSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_closed']
+    search_fields = ['name']
+    ordering_fields = ['start_date', 'end_date', 'name']
+    ordering = ['-start_date']
+
+
+# ============================================================================
+# TAX CODE VIEWSET
+# ============================================================================
+
+from accounting.models import TaxCode
+from accounting.serializers import TaxCodeSerializer
+
+class TaxCodeViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Tax Code Management
+    Provides CRUD operations for tax codes
+    """
+    queryset = TaxCode.objects.all()
+    serializer_class = TaxCodeSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['code', 'description']
+    ordering_fields = ['code', 'tax_percentage']
+    ordering = ['code']
+
+
+# ============================================================================
+# TAX MASTER V2 VIEWSET
+# ============================================================================
+
+from accounting.models import TaxMasterV2
+from accounting.serializers import TaxMasterV2Serializer
+
+class TaxMasterV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Tax Master V2 Management - IAS 12 Compliant
+    Provides CRUD operations for tax masters
+    """
+    queryset = TaxMasterV2.objects.all()
+    serializer_class = TaxMasterV2Serializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'tax_type']
+    search_fields = ['tax_code', 'tax_name']
+    ordering_fields = ['tax_code', 'tax_rate', 'created_at']
+    ordering = ['tax_code']
+
+
+# ============================================================================
+# TAX GROUP V2 VIEWSET
+# ============================================================================
+
+from accounting.models import TaxGroupV2, TaxGroupItemV2
+from accounting.serializers import TaxGroupV2Serializer, TaxGroupItemV2Serializer
+
+class TaxGroupV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Tax Group V2 Management
+    Provides CRUD operations for tax groups with compound tax support
+    """
+    queryset = TaxGroupV2.objects.all()
+    serializer_class = TaxGroupV2Serializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['group_name', 'description']
+    ordering_fields = ['group_name', 'created_at']
+    ordering = ['group_name']
+
+
+# ============================================================================
+# CURRENCY V2 VIEWSET
+# ============================================================================
+
+from accounting.models import CurrencyV2
+from accounting.serializers import CurrencyV2Serializer
+
+class CurrencyV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Currency V2 Management - IAS 21 Compliant
+    Provides CRUD operations for currencies
+    """
+    queryset = CurrencyV2.objects.all()
+    serializer_class = CurrencyV2Serializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'is_base_currency']
+    search_fields = ['currency_code', 'currency_name']
+    ordering_fields = ['currency_code', 'currency_name', 'created_at']
+    ordering = ['currency_code']
+
+
+# ============================================================================
+# EXCHANGE RATE V2 VIEWSET
+# ============================================================================
+
+from accounting.models import ExchangeRateV2
+from accounting.serializers import ExchangeRateV2Serializer
+
+class ExchangeRateV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Exchange Rate V2 Management - IAS 21 Compliant
+    Provides CRUD operations for exchange rates
+    """
+    queryset = ExchangeRateV2.objects.all()
+    serializer_class = ExchangeRateV2Serializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['from_currency', 'to_currency', 'rate_date']
+    search_fields = ['from_currency__currency_code', 'to_currency__currency_code']
+    ordering_fields = ['rate_date', 'exchange_rate', 'created_at']
+    ordering = ['-rate_date']
+
+
+# ============================================================================
+# COST CENTER V2 VIEWSET
+# ============================================================================
+
+from accounting.models import CostCenterV2
+from accounting.serializers import CostCenterV2Serializer
+
+class CostCenterV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Cost Center V2 Management
+    Provides CRUD operations for cost centers
+    """
+    queryset = CostCenterV2.objects.all()
+    serializer_class = CostCenterV2Serializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['code', 'name', 'description']
+    ordering_fields = ['code', 'name', 'created_at']
+    ordering = ['code']
+
+
+# ============================================================================
+# DEPARTMENT V2 VIEWSET
+# ============================================================================
+
+from accounting.models import DepartmentV2
+from accounting.serializers import DepartmentV2Serializer
+
+class DepartmentV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Department V2 Management
+    Provides CRUD operations for departments
+    """
+    queryset = DepartmentV2.objects.all()
+    serializer_class = DepartmentV2Serializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['code', 'name', 'description']
+    ordering_fields = ['code', 'name', 'created_at']
+    ordering = ['code']
+
+
+# ============================================================================
+# ENTITY V2 VIEWSET
+# ============================================================================
+
+from accounting.models import EntityV2
+from accounting.serializers import EntityV2Serializer
+
+class EntityV2ViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Entity V2 Management
+    Provides CRUD operations for entities
+    """
+    queryset = EntityV2.objects.all()
+    serializer_class = EntityV2Serializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['code', 'name', 'description']
+    ordering_fields = ['code', 'name', 'created_at']
+    ordering = ['code']
+
+
+# ============================================================================
+# BANK ACCOUNT VIEWSET
+# ============================================================================
+
+from accounting.models import BankAccount
+from accounting.serializers import BankAccountSerializer
+
+class BankAccountViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Bank Account Management
+    Provides CRUD operations for bank accounts
+    """
+    queryset = BankAccount.objects.all()
+    serializer_class = BankAccountSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'currency', 'bank_name']
+    search_fields = ['account_number', 'account_name', 'bank_name', 'branch']
+    ordering_fields = ['bank_name', 'account_number', 'created_at']
+    ordering = ['bank_name', 'account_number']
+
+
+# ============================================================================
+# BANK STATEMENT VIEWSET
+# ============================================================================
+
+from accounting.models import BankStatement, BankStatementLine
+from accounting.serializers import BankStatementSerializer
+
+class BankStatementViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Bank Statement Management
+    Provides CRUD operations for bank statements
+    """
+    queryset = BankStatement.objects.all()
+    serializer_class = BankStatementSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['bank_account', 'is_reconciled', 'statement_date']
+    search_fields = ['bank_account__account_name', 'bank_account__bank_name']
+    ordering_fields = ['statement_date', 'created_at']
+    ordering = ['-statement_date']
+
+
+# ============================================================================
+# FAIR VALUE MEASUREMENT VIEWSET (IAS 39/IFRS 9)
+# ============================================================================
+
+from accounting.models import FairValueMeasurement
+from accounting.serializers import FairValueMeasurementSerializer
+
+class FairValueMeasurementViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Fair Value Measurement Management
+    Provides CRUD operations for fair value measurements (IAS 39/IFRS 9)
+    """
+    queryset = FairValueMeasurement.objects.all()
+    serializer_class = FairValueMeasurementSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['asset', 'level', 'measurement_date']
+    search_fields = ['asset__asset_name', 'asset__asset_code', 'valuation_technique']
+    ordering_fields = ['measurement_date', 'fair_value', 'created_at']
+    ordering = ['-measurement_date']
+
+
+# ============================================================================
+# FX REVALUATION LOG VIEWSET (IAS 21)
+# ============================================================================
+
+from accounting.models import FXRevaluationLog
+from accounting.serializers import FXRevaluationLogSerializer
+
+class FXRevaluationLogViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for FX Revaluation Log Management
+    Provides CRUD operations for FX revaluation logs (IAS 21)
+    """
+    queryset = FXRevaluationLog.objects.all()
+    serializer_class = FXRevaluationLogSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['entity', 'status', 'revaluation_date', 'functional_currency']
+    search_fields = ['revaluation_id', 'entity__entity_code', 'entity__entity_name']
+    ordering_fields = ['revaluation_date', 'created_at', 'net_fx_gain_loss']
+    ordering = ['-revaluation_date', '-created_at']

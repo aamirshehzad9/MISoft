@@ -147,6 +147,197 @@
     color: var(--text-primary);
 }
 
+/* Database Technology Section */
+.database-technology-section {
+    margin-top: 80px;
+    padding: 60px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.database-header {
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+.database-icon {
+    color: #3b82f6;
+    margin-bottom: 16px;
+}
+
+.database-header h3 {
+    font-size: 2.5rem;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.database-header p {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.database-comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+    margin-bottom: 40px;
+}
+
+.database-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 32px;
+    backdrop-filter: var(--glass-blur);
+    transition: all 0.3s ease;
+}
+
+.database-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(59, 130, 246, 0.2);
+}
+
+.sqlite-card {
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.postgresql-card {
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+.database-card-header {
+    text-align: center;
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.database-card-header svg {
+    color: #3b82f6;
+    margin-bottom: 16px;
+}
+
+.database-card-header h4 {
+    font-size: 1.75rem;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.db-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.db-badge.recommended {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.db-badge.enterprise {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.database-description {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.database-specs,
+.database-use-cases {
+    margin-bottom: 24px;
+}
+
+.database-specs h5,
+.database-use-cases h5 {
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.database-specs ul,
+.database-use-cases ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.database-specs li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.database-specs li svg {
+    color: #3b82f6;
+    flex-shrink: 0;
+}
+
+.database-use-cases li {
+    padding: 6px 0;
+    padding-left: 20px;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    position: relative;
+}
+
+.database-use-cases li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #3b82f6;
+    font-weight: 700;
+}
+
+.database-cta {
+    text-align: center;
+    padding: 32px;
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 16px;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.database-cta p {
+    font-size: 1.125rem;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+}
+
+.download-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 32px;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.download-link-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -172,5 +363,13 @@
 
     .features-grid {
         grid-template-columns: 1fr;
+    }
+
+    .database-comparison-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .database-header h3 {
+        font-size: 2rem;
     }
 }

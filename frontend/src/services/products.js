@@ -3,27 +3,27 @@ import api from './api';
 export const productsService = {
     // Products
     getAll: async (params = {}) => {
-        const response = await api.get('/products/', { params });
+        const response = await api.get('/products/products/', { params });
         return response.data;
     },
 
     getById: async (id) => {
-        const response = await api.get(`/products/${id}/`);
+        const response = await api.get(`/products/products/${id}/`);
         return response.data;
     },
 
     create: async (data) => {
-        const response = await api.post('/products/', data);
+        const response = await api.post('/products/products/', data);
         return response.data;
     },
 
     update: async (id, data) => {
-        const response = await api.put(`/products/${id}/`, data);
+        const response = await api.put(`/products/products/${id}/`, data);
         return response.data;
     },
 
     delete: async (id) => {
-        const response = await api.delete(`/products/${id}/`);
+        const response = await api.delete(`/products/products/${id}/`);
         return response.data;
     },
 

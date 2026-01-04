@@ -85,7 +85,7 @@ const PartnerForm = () => {
             } else {
                 await partnersService.create(formData);
             }
-            navigate('/partners');
+            navigate('/dashboard/partners');
         } catch (error) {
             console.error('Error saving partner:', error);
             setErrors({ submit: 'Failed to save partner. Please try again.' });
@@ -232,7 +232,7 @@ const PartnerForm = () => {
                         <Button
                             type="button"
                             variant="secondary"
-                            onClick={() => navigate('/partners')}
+                            onClick={() => navigate('/dashboard/partners')}
                         >
                             Cancel
                         </Button>

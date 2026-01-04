@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Cloud, HardDrive } from 'lucide-react';
+import { Cloud, HardDrive, Database, CheckCircle, ArrowRight } from 'lucide-react';
 import GlassCard from '../shared/GlassCard';
 import SectionHeading from '../shared/SectionHeading';
 import './HybridDeployment.css';
@@ -100,6 +100,90 @@ const HybridDeployment = () => {
                             <p className="feature-description">{feature.description}</p>
                         </GlassCard>
                     ))}
+                </div>
+
+                {/* Database Technology Section */}
+                <div className="database-technology-section">
+                    <div className="database-header">
+                        <Database size={32} className="database-icon" />
+                        <h3>Database Technology Options</h3>
+                        <p>Choose the right database for your deployment scale and requirements</p>
+                    </div>
+
+                    <div className="database-comparison-grid">
+                        <div className="database-card sqlite-card">
+                            <div className="database-card-header">
+                                <HardDrive size={40} />
+                                <h4>SQLite Database</h4>
+                                <span className="db-badge recommended">Recommended for SMBs</span>
+                            </div>
+                            <p className="database-description">
+                                Perfect for small to medium businesses. Zero configuration, single-file database 
+                                that's easy to backup and migrate.
+                            </p>
+                            <div className="database-specs">
+                                <h5>Technical Specifications</h5>
+                                <ul>
+                                    <li><CheckCircle size={16} /> <strong>Users:</strong> Up to 100 concurrent users</li>
+                                    <li><CheckCircle size={16} /> <strong>Size:</strong> 45 MB installation</li>
+                                    <li><CheckCircle size={16} /> <strong>Setup:</strong> ~5 minutes</li>
+                                    <li><CheckCircle size={16} /> <strong>Maintenance:</strong> Zero configuration</li>
+                                    <li><CheckCircle size={16} /> <strong>Backup:</strong> Simple file copy</li>
+                                    <li><CheckCircle size={16} /> <strong>Cost:</strong> No licensing fees</li>
+                                </ul>
+                            </div>
+                            <div className="database-use-cases">
+                                <h5>Best For</h5>
+                                <ul>
+                                    <li>Small businesses (1-50 employees)</li>
+                                    <li>Single-location operations</li>
+                                    <li>Quick deployment needs</li>
+                                    <li>Local-only access requirements</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="database-card postgresql-card">
+                            <div className="database-card-header">
+                                <Database size={40} />
+                                <h4>PostgreSQL + Docker</h4>
+                                <span className="db-badge enterprise">Enterprise Grade</span>
+                            </div>
+                            <p className="database-description">
+                                Enterprise-ready database with unlimited scalability. Full ACID compliance, 
+                                advanced features, and production-grade performance.
+                            </p>
+                            <div className="database-specs">
+                                <h5>Technical Specifications</h5>
+                                <ul>
+                                    <li><CheckCircle size={16} /> <strong>Users:</strong> Unlimited concurrent users</li>
+                                    <li><CheckCircle size={16} /> <strong>Size:</strong> 120 MB Docker package</li>
+                                    <li><CheckCircle size={16} /> <strong>Setup:</strong> ~10 minutes</li>
+                                    <li><CheckCircle size={16} /> <strong>Maintenance:</strong> Automated via Docker</li>
+                                    <li><CheckCircle size={16} /> <strong>Backup:</strong> Point-in-time recovery</li>
+                                    <li><CheckCircle size={16} /> <strong>Scaling:</strong> Auto-scaling support</li>
+                                </ul>
+                            </div>
+                            <div className="database-use-cases">
+                                <h5>Best For</h5>
+                                <ul>
+                                    <li>Medium to large enterprises (100+ employees)</li>
+                                    <li>Multi-location operations</li>
+                                    <li>Cloud deployment requirements</li>
+                                    <li>High-availability needs</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="database-cta">
+                        <p>Ready to download your preferred database package?</p>
+                        <a href="#download-section" className="download-link-btn">
+                            <Database size={20} />
+                            View Installation Packages
+                            <ArrowRight size={20} />
+                        </a>
+                    </div>
                 </div>
 
                 <div className="deployment-note">

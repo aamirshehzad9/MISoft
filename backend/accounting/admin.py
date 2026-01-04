@@ -5,7 +5,8 @@ from .models import (
     Invoice, InvoiceItem, Payment, PaymentAllocation, BankAccount, TaxCode,
     # V2 models
     AccountV2, CostCenterV2, DepartmentV2, CurrencyV2, ExchangeRateV2,
-    TaxMasterV2, TaxGroupV2, TaxGroupItemV2, VoucherV2, VoucherEntryV2
+    TaxMasterV2, TaxGroupV2, TaxGroupItemV2, VoucherV2, VoucherEntryV2,
+    FairValueMeasurement, Entity, FXRevaluationLog, NumberingScheme
 )
 
 
@@ -104,9 +105,9 @@ class TaxCodeAdmin(admin.ModelAdmin):
 
 @admin.register(AccountV2)
 class AccountV2Admin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'account_type', 'account_group', 'is_group', 'current_balance', 'is_active']
-    list_filter = ['account_type', 'account_group', 'is_group', 'is_active']
-    search_fields = ['code', 'name']
+    list_display = ['code', 'name', 'account_type', 'account_group', 'ias_reference_code', 'ifrs_category', 'is_group', 'current_balance', 'is_active']
+    list_filter = ['account_type', 'account_group', 'ias_reference_code', 'ifrs_category', 'measurement_basis', 'is_group', 'is_active']
+    search_fields = ['code', 'name', 'ias_reference_code', 'ifrs_subcategory']
     ordering = ['code']
     fieldsets = (
         ('Basic Information', {
@@ -114,6 +115,10 @@ class AccountV2Admin(admin.ModelAdmin):
         }),
         ('Classification', {
             'fields': ('account_type', 'account_group')
+        }),
+        ('IFRS Compliance', {
+            'fields': ('ias_reference_code', 'ifrs_category', 'ifrs_subcategory', 'measurement_basis'),
+            'description': 'IAS/IFRS compliance fields for international financial reporting standards'
         }),
         ('Properties', {
             'fields': ('is_group', 'is_active', 'allow_direct_posting')
@@ -217,3 +222,199 @@ class VoucherV2Admin(admin.ModelAdmin):
         }),
     )
     readonly_fields = ['approved_at']
+
+
+@admin.register(FairValueMeasurement)
+class FairValueMeasurementAdmin(admin.ModelAdmin):
+    list_display = ['account', 'measurement_date', 'fair_value_level', 'fair_value', 'carrying_amount', 'gain_loss', 'is_approved']
+    list_filter = ['fair_value_level', 'valuation_technique', 'measurement_purpose', 'recognized_in_pl', 'measurement_date']
+    search_fields = ['account__code', 'account__name', 'external_valuer', 'notes']
+    ordering = ['-measurement_date', '-created_at']
+    readonly_fields = ['gain_loss', 'created_at', 'updated_at', 'approved_at']
+    
+    fieldsets = (
+        ('Account Information', {
+            'fields': ('account', 'measurement_date', 'measurement_purpose')
+        }),
+        ('Fair Value Details', {
+            'fields': ('fair_value', 'carrying_amount', 'gain_loss', 'recognized_in_pl')
+        }),
+        ('IFRS 13 Compliance', {
+            'fields': ('fair_value_level', 'valuation_technique', 'valuation_description', 'inputs_used')
+        }),
+        ('External Valuation', {
+            'fields': ('external_valuer', 'valuer_credentials', 'valuation_report_ref'),
+            'classes': ('collapse',)
+        }),
+        ('Accounting Entry', {
+            'fields': ('voucher',),
+            'classes': ('collapse',)
+        }),
+        ('Approval', {
+            'fields': ('created_by', 'created_at', 'approved_by', 'approved_at')
+        }),
+        ('Notes', {
+            'fields': ('notes',)
+        }),
+    )
+
+
+@admin.register(Entity)
+class EntityAdmin(admin.ModelAdmin):
+    list_display = ['entity_code', 'entity_name', 'entity_type', 'functional_currency', 'consolidation_percentage', 'is_active']
+    list_filter = ['entity_type', 'consolidation_method', 'functional_currency', 'is_active', 'country']
+    search_fields = ['entity_code', 'entity_name', 'short_name', 'registration_number', 'tax_id']
+    ordering = ['entity_code']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Entity Identification', {
+            'fields': ('entity_code', 'entity_name', 'short_name', 'entity_type')
+        }),
+        ('Hierarchy', {
+            'fields': ('parent_entity',)
+        }),
+        ('Currency & Location (IAS 21)', {
+            'fields': ('country', 'functional_currency', 'presentation_currency')
+        }),
+        ('Consolidation Settings (IFRS 10)', {
+            'fields': ('consolidation_percentage', 'consolidation_method', 'eliminate_intercompany')
+        }),
+        ('Registration', {
+            'fields': ('registration_number', 'tax_id')
+        }),
+        ('Contact Information', {
+            'fields': ('address', 'city', 'state', 'postal_code', 'phone', 'email'),
+            'classes': ('collapse',)
+        }),
+        ('Status', {
+            'fields': ('is_active', 'activation_date', 'deactivation_date')
+        }),
+        ('Audit Trail', {
+            'fields': ('created_by', 'created_at', 'updated_at')
+        }),
+        ('Notes', {
+            'fields': ('notes',)
+        }),
+    )
+
+
+@admin.register(FXRevaluationLog)
+class FXRevaluationLogAdmin(admin.ModelAdmin):
+    list_display = ['revaluation_id', 'entity', 'revaluation_date', 'net_fx_gain_loss', 'status', 'voucher', 'created_at']
+    list_filter = ['status', 'execution_method', 'auto_posted', 'reversal_created', 'revaluation_date', 'entity']
+    search_fields = ['revaluation_id', 'entity__entity_code', 'entity__entity_name', 'voucher__voucher_number']
+    ordering = ['-revaluation_date', '-created_at']
+    readonly_fields = ['revaluation_id', 'created_at', 'is_successful', 'has_fx_impact']
+    
+    fieldsets = (
+        ('Revaluation Information', {
+            'fields': ('revaluation_id', 'entity', 'revaluation_date', 'functional_currency')
+        }),
+        ('Results', {
+            'fields': ('accounts_revalued', 'total_gain', 'total_loss', 'net_fx_gain_loss', 'is_successful', 'has_fx_impact')
+        }),
+        ('Vouchers', {
+            'fields': ('voucher', 'reversal_voucher')
+        }),
+        ('Execution Details', {
+            'fields': ('status', 'execution_method', 'auto_posted', 'reversal_created')
+        }),
+        ('Detailed Results', {
+            'fields': ('revaluation_details',),
+            'classes': ('collapse',)
+        }),
+        ('Error Information', {
+            'fields': ('error_message',),
+            'classes': ('collapse',)
+        }),
+        ('Audit Trail', {
+            'fields': ('created_by', 'created_at')
+        }),
+        ('Notes', {
+            'fields': ('notes',)
+        }),
+    )
+
+
+@admin.register(NumberingScheme)
+class NumberingSchemeAdmin(admin.ModelAdmin):
+    list_display = ['scheme_name', 'document_type', 'preview_number', 'next_number', 'reset_frequency', 'is_active', 'entity']
+    list_filter = ['document_type', 'reset_frequency', 'is_active', 'entity']
+    search_fields = ['scheme_name', 'prefix', 'suffix']
+    ordering = ['document_type', 'scheme_name']
+    readonly_fields = ['created_at', 'updated_at', 'preview_number']
+    actions = ['reset_counter_action', 'activate_schemes', 'deactivate_schemes']
+    
+    fieldsets = (
+        ('Scheme Information', {
+            'fields': ('scheme_name', 'document_type', 'entity')
+        }),
+        ('Format Configuration', {
+            'fields': ('prefix', 'date_format', 'separator', 'padding', 'suffix')
+        }),
+        ('Sequence Management', {
+            'fields': ('next_number', 'reset_frequency', 'last_reset_date')
+        }),
+        ('Preview', {
+            'fields': ('preview_number',),
+            'description': 'Preview of the next generated number'
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('Audit Trail', {
+            'fields': ('created_by', 'created_at', 'updated_at')
+        }),
+        ('Notes', {
+            'fields': ('notes',)
+        }),
+    )
+    
+    def preview_number(self, obj):
+        """Display preview of next number"""
+        if obj.pk:
+            return obj.generate_preview()
+        return '-'
+    preview_number.short_description = 'Next Number Preview'
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # New object
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+    
+    @admin.action(description='Reset counter to 1')
+    def reset_counter_action(self, request, queryset):
+        """Reset counter for selected schemes"""
+        from datetime import date
+        
+        count = 0
+        for scheme in queryset:
+            scheme.next_number = 1
+            scheme.last_reset_date = date.today()
+            scheme.save()
+            count += 1
+        
+        self.message_user(
+            request,
+            f'Successfully reset {count} numbering scheme(s) to 1.'
+        )
+    
+    @admin.action(description='Activate selected schemes')
+    def activate_schemes(self, request, queryset):
+        """Activate selected schemes"""
+        updated = queryset.update(is_active=True)
+        self.message_user(
+            request,
+            f'Successfully activated {updated} numbering scheme(s).'
+        )
+    
+    @admin.action(description='Deactivate selected schemes')
+    def deactivate_schemes(self, request, queryset):
+        """Deactivate selected schemes"""
+        updated = queryset.update(is_active=False)
+        self.message_user(
+            request,
+            f'Successfully deactivated {updated} numbering scheme(s).'
+        )
+

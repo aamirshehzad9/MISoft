@@ -4,9 +4,12 @@ import {
     FaFolder, FaFolderOpen, FaFileInvoiceDollar, FaPlus, FaSearch,
     FaChevronRight, FaChevronDown, FaEdit, FaTrash
 } from 'react-icons/fa';
+import Modal from '../../components/common/Modal';
+import AccountForm from './AccountForm';
 import './ChartOfAccounts.css';
+import './ChartOfAccountsButtons.css';
 
-const AccountTreeItem = ({ account, children, level = 0, onToggle, isExpanded }) => {
+const AccountTreeItem = ({ account, children, level = 0, onToggle, isExpanded, onEditAccount }) => {
     const hasChildren = children && children.length > 0;
     const paddingLeft = `${level * 24 + 12}px`;
 
@@ -45,7 +48,16 @@ const AccountTreeItem = ({ account, children, level = 0, onToggle, isExpanded })
                         {parseFloat(account.current_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                     <div className="account-actions">
-                        <button className="btn-icon" title="Edit"><FaEdit /></button>
+                        <button 
+                            className="btn-icon" 
+                            title="Edit"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEditAccount(account);
+                            }}
+                        >
+                            <FaEdit />
+                        </button>
                     </div>
                 </div>
             </div>
@@ -60,6 +72,7 @@ const AccountTreeItem = ({ account, children, level = 0, onToggle, isExpanded })
                             level={level + 1}
                             onToggle={onToggle}
                             isExpanded={child.isExpanded}
+                            onEditAccount={onEditAccount}
                         />
                     ))}
                 </div>
@@ -74,6 +87,8 @@ const ChartOfAccounts = () => {
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedIds, setExpandedIds] = useState(new Set());
+    const [showModal, setShowModal] = useState(false);
+    const [editingAccount, setEditingAccount] = useState(null);
 
     useEffect(() => {
         fetchAccounts();
@@ -100,28 +115,18 @@ const ChartOfAccounts = () => {
         }
     };
 
-    const buildTree = (flatList) => {
-        if (!flatList) return [];
-        const map = {};
-        const roots = [];
-
-        // First pass: Initialize map
-        flatList.forEach(node => {
-            map[node.id] = { ...node, children: [], isExpanded: false };
+    const buildTree = (nodes) => {
+        if (!nodes || !Array.isArray(nodes)) return [];
+        
+        // The API now returns a proper tree structure with children already nested
+        // We just need to add the isExpanded flag recursively
+        const addExpandedFlag = (node) => ({
+            ...node,
+            isExpanded: false,
+            children: node.children ? node.children.map(addExpandedFlag) : []
         });
-
-        // Second pass: Connect parents and children
-        flatList.forEach(node => {
-            if (node.parent) {
-                if (map[node.parent]) {
-                    map[node.parent].children.push(map[node.id]);
-                }
-            } else {
-                roots.push(map[node.id]);
-            }
-        });
-
-        return roots;
+        
+        return nodes.map(addExpandedFlag);
     };
 
     const toggleExpand = (id) => {
@@ -134,6 +139,12 @@ const ChartOfAccounts = () => {
             }
             return next;
         });
+    };
+
+    // Handle edit account
+    const handleEditAccount = (account) => {
+        setEditingAccount(account);
+        setShowModal(true);
     };
 
     // Recursive function to update expansion state for rendering
@@ -160,7 +171,13 @@ const ChartOfAccounts = () => {
                     <h1>Chart of Accounts</h1>
                     <p className="text-muted">Manage your financial structure (V2 Enhanced)</p>
                 </div>
-                <button className="btn-primary">
+                <button 
+                    className="btn-primary"
+                    onClick={() => {
+                        setEditingAccount(null);
+                        setShowModal(true);
+                    }}
+                >
                     <FaPlus /> New Account
                 </button>
             </div>
@@ -208,11 +225,36 @@ const ChartOfAccounts = () => {
                                 children={root.children}
                                 onToggle={toggleExpand}
                                 isExpanded={root.isExpanded}
+                                onEditAccount={handleEditAccount}
                             />
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Account Form Modal */}
+            <Modal 
+                isOpen={showModal} 
+                onClose={() => {
+                    setShowModal(false);
+                    setEditingAccount(null);
+                }}
+                title={editingAccount ? 'Edit Account' : 'New Account'}
+                size="lg"
+            >
+                <AccountForm
+                    account={editingAccount}
+                    onSuccess={() => {
+                        setShowModal(false);
+                        setEditingAccount(null);
+                        fetchAccounts();
+                    }}
+                    onCancel={() => {
+                        setShowModal(false);
+                        setEditingAccount(null);
+                    }}
+                />
+            </Modal>
         </div>
     );
 };

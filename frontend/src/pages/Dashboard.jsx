@@ -41,7 +41,7 @@ const Dashboard = () => {
                 </svg>
             ),
             color: 'primary',
-            link: '/partners',
+            link: '/dashboard/partners',
         },
         {
             title: 'Total Products',
@@ -52,7 +52,7 @@ const Dashboard = () => {
                 </svg>
             ),
             color: 'success',
-            link: '/products',
+            link: '/dashboard/products',
         },
         {
             title: 'Active Orders',
@@ -63,7 +63,7 @@ const Dashboard = () => {
                 </svg>
             ),
             color: 'warning',
-            link: '/manufacturing/production-orders',
+            link: '/dashboard/manufacturing/production-orders',
         },
         {
             title: 'Pending Invoices',
@@ -74,7 +74,7 @@ const Dashboard = () => {
                 </svg>
             ),
             color: 'danger',
-            link: '/accounting/invoices',
+            link: '/dashboard/accounting/invoices',
         },
     ];
 
@@ -86,7 +86,7 @@ const Dashboard = () => {
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor" />
                 </svg>
             ),
-            onClick: () => navigate('/partners/new'),
+            onClick: () => navigate('/dashboard/partners/new'),
             variant: 'primary',
         },
         {
@@ -96,7 +96,7 @@ const Dashboard = () => {
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor" />
                 </svg>
             ),
-            onClick: () => navigate('/products/new'),
+            onClick: () => navigate('/dashboard/products/new'),
             variant: 'success',
         },
         {
@@ -106,7 +106,7 @@ const Dashboard = () => {
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor" />
                 </svg>
             ),
-            onClick: () => navigate('/manufacturing/production-orders/new'),
+            onClick: () => navigate('/dashboard/manufacturing/production-orders/new'),
             variant: 'warning',
         },
         {
@@ -116,7 +116,7 @@ const Dashboard = () => {
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor" />
                 </svg>
             ),
-            onClick: () => navigate('/accounting/invoices/new'),
+            onClick: () => navigate('/dashboard/accounting/invoices/new'),
             variant: 'info',
         },
     ];

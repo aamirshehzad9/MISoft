@@ -5,6 +5,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/forms/Input';
 import Select from '../../components/forms/Select';
 import accountingService from '../../services/accounting';
+import ReferenceEditor from './ReferenceEditor';
 import './InvoiceForm.css'; // Reusing styles
 
 const VoucherForm = () => {
@@ -22,6 +23,7 @@ const VoucherForm = () => {
         voucher_date: new Date().toISOString().split('T')[0],
         reference_number: '',
         narration: '',
+        user_references: {},
         status: 'draft',
     });
     const [entries, setEntries] = useState([
@@ -49,6 +51,7 @@ const VoucherForm = () => {
                 voucher_date: data.voucher_date,
                 reference_number: data.reference_number || '',
                 narration: data.narration || '',
+                user_references: data.user_references || {},
                 status: data.status,
             });
             if (data.entries && data.entries.length > 0) {
@@ -80,10 +83,35 @@ const VoucherForm = () => {
         }
     };
 
-    const generateVoucherNumber = (type) => {
-        const timestamp = Date.now();
-        const num = `${type}-${timestamp.toString().slice(-8)}`;
-        setFormData(prev => ({ ...prev, voucher_number: num }));
+    const generateVoucherNumber = async (type) => {
+        try {
+            // Map voucher type to document type for numbering scheme
+            const docTypeMapping = {
+                'JE': 'journal',
+                'SI': 'invoice',
+                'PI': 'purchase_order',
+                'CPV': 'payment',
+                'BPV': 'payment',
+                'CRV': 'receipt',
+                'BRV': 'receipt',
+                'DN': 'debit_note',
+                'CN': 'credit_note',
+                'CE': 'journal',
+            };
+            
+            const document_type = docTypeMapping[type] || 'voucher';
+            const response = await accountingService.previewNumber({ document_type });
+            
+            if (response && response.preview) {
+                setFormData(prev => ({ ...prev, voucher_number: response.preview }));
+            }
+        } catch (error) {
+            // Fallback to timestamp if no scheme exists or error
+            console.log('Using fallback numbering:', error);
+            const timestamp = Date.now();
+            const num = `${type}-${timestamp.toString().slice(-8)}`;
+            setFormData(prev => ({ ...prev, voucher_number: num }));
+        }
     };
 
     const fetchAccounts = async () => {
@@ -165,7 +193,7 @@ const VoucherForm = () => {
             };
 
             await accountingService.createVoucher(payload);
-            navigate('/accounting/vouchers');
+            navigate('/dashboard/accounting/vouchers');
         } catch (error) {
             console.error('Error saving voucher:', error);
             setErrors({ submit: 'Failed to save voucher.' });
@@ -214,6 +242,12 @@ const VoucherForm = () => {
                             <Input label="Reference" name="reference_number" value={formData.reference_number} onChange={handleChange} />
                             <Input label="Narration" name="narration" value={formData.narration} onChange={handleChange} className="form-grid-full" />
                         </div>
+                        <ReferenceEditor 
+                            modelName="voucher" 
+                            value={formData.user_references} 
+                            onChange={(refs) => setFormData(prev => ({ ...prev, user_references: refs }))}
+                            readOnly={formData.status === 'posted' || formData.status === 'cancelled'}
+                        />
                     </div>
 
                     <div className="form-section">
@@ -270,7 +304,7 @@ const VoucherForm = () => {
                     </div>
 
                     <div className="form-actions">
-                        <Button type="button" variant="secondary" onClick={() => navigate('/accounting/vouchers')}>Cancel</Button>
+                        <Button type="button" variant="secondary" onClick={() => navigate('/dashboard/accounting/vouchers')}>Cancel</Button>
                         {formData.status === 'draft' && (
                             <>
                                 <Button type="submit" variant="primary" loading={loading} disabled={difference !== 0}>Save Draft</Button>

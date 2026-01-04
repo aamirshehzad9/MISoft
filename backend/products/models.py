@@ -113,6 +113,23 @@ class Product(models.Model):
     is_manufactured = models.BooleanField(default=False)
     manufacturing_lead_time_days = models.IntegerField(default=0)
     
+    # Density for UoM conversions (Task 1.5.2)
+    density = models.DecimalField(
+        max_digits=10, 
+        decimal_places=4, 
+        null=True, 
+        blank=True,
+        help_text="Product density for volume-weight conversions (e.g., kg/liter)"
+    )
+    density_uom = models.ForeignKey(
+        UnitOfMeasure, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='density_products',
+        help_text="Reference UoM for density measurement"
+    )
+    
     # Status
     is_active = models.BooleanField(default=True)
     is_purchasable = models.BooleanField(default=True)
@@ -162,3 +179,94 @@ class ProductVariant(models.Model):
     
     def __str__(self):
         return f"{self.product.name} - {self.variant_name}"
+
+
+class UoMConversion(models.Model):
+    """
+    Unit of Measure Conversion Rules
+    Supports multiple conversion types for complex manufacturing scenarios
+    """
+    
+    CONVERSION_TYPES = [
+        ('simple', 'Simple Multiplier'),
+        ('density', 'Density-based (Volume ↔ Weight)'),
+        ('formula', 'Custom Formula'),
+    ]
+    
+    from_uom = models.ForeignKey(
+        UnitOfMeasure, 
+        on_delete=models.CASCADE, 
+        related_name='conversions_from',
+        help_text="Source unit of measure"
+    )
+    to_uom = models.ForeignKey(
+        UnitOfMeasure, 
+        on_delete=models.CASCADE, 
+        related_name='conversions_to',
+        help_text="Target unit of measure"
+    )
+    conversion_type = models.CharField(
+        max_length=20, 
+        choices=CONVERSION_TYPES,
+        default='simple',
+        help_text="Type of conversion calculation"
+    )
+    multiplier = models.DecimalField(
+        max_digits=10, 
+        decimal_places=4, 
+        null=True, 
+        blank=True,
+        help_text="Multiplier for simple conversions (e.g., 1000 for kg to g)"
+    )
+    formula = models.TextField(
+        null=True, 
+        blank=True,
+        help_text="Python expression for custom conversions. Use 'quantity' as variable."
+    )
+    is_active = models.BooleanField(default=True)
+    is_bidirectional = models.BooleanField(
+        default=True,
+        help_text="If true, reverse conversion is automatically available"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['from_uom', 'to_uom']
+        unique_together = ['from_uom', 'to_uom']
+        verbose_name = "UoM Conversion"
+        verbose_name_plural = "UoM Conversions"
+    
+    def __str__(self):
+        return f"{self.from_uom.symbol} → {self.to_uom.symbol} ({self.get_conversion_type_display()})"
+    
+    def clean(self):
+        """Validate conversion rules"""
+        from django.core.exceptions import ValidationError
+        
+        # Validate that from_uom and to_uom are different
+        if self.from_uom == self.to_uom:
+            raise ValidationError("Cannot create conversion from a UoM to itself")
+        
+        # Validate multiplier for simple conversions
+        if self.conversion_type == 'simple' and not self.multiplier:
+            raise ValidationError("Multiplier is required for simple conversions")
+        
+        # Validate formula for custom conversions
+        if self.conversion_type == 'formula' and not self.formula:
+            raise ValidationError("Formula is required for custom formula conversions")
+        
+        # Validate density conversions require compatible UoM types
+        if self.conversion_type == 'density':
+            valid_combinations = [
+                ('volume', 'weight'),
+                ('weight', 'volume')
+            ]
+            if (self.from_uom.uom_type, self.to_uom.uom_type) not in valid_combinations:
+                raise ValidationError(
+                    "Density-based conversions require volume ↔ weight UoM types"
+                )
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

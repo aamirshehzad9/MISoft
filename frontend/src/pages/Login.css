@@ -158,20 +158,20 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.input-wrapper {
+.login-container .input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.input-icon {
+.login-container .input-icon {
   position: absolute;
   left: 16px;
   color: rgba(255, 255, 255, 0.6);
   pointer-events: none;
 }
 
-.input-wrapper input {
+.login-container .input-wrapper input {
   width: 100%;
   padding: 14px 16px 14px 48px;
   background: rgba(255, 255, 255, 0.15);
@@ -182,18 +182,18 @@
   transition: all 0.3s ease;
 }
 
-.input-wrapper input::placeholder {
+.login-container .input-wrapper input::placeholder {
   color: rgba(255, 255, 255, 0.5);
 }
 
-.input-wrapper input:focus {
+.login-container .input-wrapper input:focus {
   outline: none;
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.4);
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1);
 }
 
-.input-wrapper input:disabled {
+.login-container .input-wrapper input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

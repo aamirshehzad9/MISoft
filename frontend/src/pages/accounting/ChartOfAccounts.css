@@ -38,12 +38,15 @@
 }
 
 .search-bar input {
-    border: none;
-    background: transparent;
+    border: 1px solid #d1d5db !important; /* Visible border */
+    background: #ffffff !important;
+    padding: 10px 14px;
+    border-radius: 6px;
     margin-left: 0.5rem;
     width: 100%;
     outline: none;
-    color: var(--text-primary);
+    color: #1f2937 !important;
+    font-size: 14px;
 }
 
 .coa-tree-container {

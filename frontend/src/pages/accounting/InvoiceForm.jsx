@@ -8,6 +8,7 @@ import accountingService from '../../services/accounting';
 import partnersService from '../../services/partners';
 import productsService from '../../services/products';
 import './InvoiceForm.css';
+import ReferenceEditor from './ReferenceEditor';
 
 const InvoiceForm = () => {
     const navigate = useNavigate();
@@ -24,7 +25,9 @@ const InvoiceForm = () => {
         invoice_date: new Date().toISOString().split('T')[0],
         due_date: new Date().toISOString().split('T')[0],
         payment_terms: '',
+
         notes: '',
+        user_references: {},
     });
     const [lineItems, setLineItems] = useState([
         { product: '', description: '', quantity: 1, unit_price: 0, tax_rate: 0 }
@@ -72,6 +75,7 @@ const InvoiceForm = () => {
                 ...data,
                 invoice_date: data.invoice_date?.split('T')[0] || '',
                 due_date: data.due_date?.split('T')[0] || '',
+                user_references: data.user_references || {},
             });
             if (data.items && data.items.length > 0) {
                 setLineItems(data.items);
@@ -166,7 +170,7 @@ const InvoiceForm = () => {
             } else {
                 await accountingService.createInvoice(invoiceData);
             }
-            navigate('/accounting/invoices');
+            navigate('/dashboard/accounting/invoices');
         } catch (error) {
             console.error('Error saving invoice:', error);
             setErrors({ submit: 'Failed to save invoice. Please try again.' });
@@ -374,13 +378,19 @@ const InvoiceForm = () => {
                                 className="form-grid-full"
                             />
                         </div>
+                        <ReferenceEditor
+                            modelName="invoice" 
+                            value={formData.user_references} 
+                            onChange={(refs) => setFormData(prev => ({ ...prev, user_references: refs }))}
+                            readOnly={false}
+                        />
                     </div>
 
                     <div className="form-actions">
                         <Button
                             type="button"
                             variant="secondary"
-                            onClick={() => navigate('/accounting/invoices')}
+                            onClick={() => navigate('/dashboard/accounting/invoices')}
                         >
                             Cancel
                         </Button>

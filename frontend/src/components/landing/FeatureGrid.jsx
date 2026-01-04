@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { FileCheck, Globe, Factory, Brain } from 'lucide-react';
 import GlassCard from '../shared/GlassCard';
 import SectionHeading from '../shared/SectionHeading';
@@ -6,10 +6,11 @@ import FeatureCard from './FeatureCard';
 import './FeatureGrid.css';
 
 // Import feature images
+// TODO: Restore these images from// Import feature images - AI-generated animations
 import ifrsComplianceImg from '../../assets/features/ifrs_compliance.png';
 import multiCurrencyImg from '../../assets/features/multi_currency.png';
-import manufacturingErpImg from '../../assets/features/manufacturing_erp.png';
 import aiEngineImg from '../../assets/features/ai_engine.png';
+import manufacturingErpImg from '../../assets/features/manufacturing_erp.png';
 
 const FeatureGrid = () => {
     const features = [

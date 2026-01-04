@@ -1,48 +1,106 @@
+"""
+UoM Conversion Serializers
+"""
 from rest_framework import serializers
-from .models import ProductCategory, UnitOfMeasure, Product, ProductVariant
+from products.models import UoMConversion, UnitOfMeasure, Product, ProductVariant
 
-class ProductCategorySerializer(serializers.ModelSerializer):
-    full_path = serializers.ReadOnlyField()
-    children_count = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = ProductCategory
-        fields = '__all__'
-    
-    def get_children_count(self, obj):
-        return obj.children.count()
-
-class UnitOfMeasureSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UnitOfMeasure
-        fields = '__all__'
-
-class ProductVariantSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductVariant
-        fields = '__all__'
 
 class ProductSerializer(serializers.ModelSerializer):
+    """Serializer for Product"""
+    
+    uom_name = serializers.CharField(source='uom.name', read_only=True)
+    uom_symbol = serializers.CharField(source='uom.symbol', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
-    base_uom_name = serializers.CharField(source='base_uom.name', read_only=True)
-    variants = ProductVariantSerializer(many=True, read_only=True)
-    current_stock = serializers.ReadOnlyField()
-    created_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
-        fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at', 'created_by', 'current_stock')
-    
-    def get_created_by_name(self, obj):
-        return obj.created_by.username if obj.created_by else None
+        fields = [
+            'id', 'name', 'code', 'description', 'category', 'category_name',
+            'uom', 'uom_name', 'uom_symbol', 'cost_price', 'selling_price',
+            'min_stock_level', 'max_stock_level', 'reorder_point',
+            'lead_time_days', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
 
-class ProductListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for list views"""
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    base_uom_symbol = serializers.CharField(source='base_uom.symbol', read_only=True)
+
+
+class UnitOfMeasureSerializer(serializers.ModelSerializer):
+    """Serializer for UnitOfMeasure"""
     
     class Meta:
-        model = Product
-        fields = ('id', 'code', 'name', 'category_name', 'product_type', 'base_uom_symbol',
-                  'selling_price', 'minimum_stock', 'is_active')
+        model = UnitOfMeasure
+        fields = ['id', 'name', 'symbol', 'uom_type', 'is_active']
+
+
+class UoMConversionSerializer(serializers.ModelSerializer):
+    """Serializer for UoMConversion"""
+    
+    from_uom_detail = UnitOfMeasureSerializer(source='from_uom', read_only=True)
+    to_uom_detail = UnitOfMeasureSerializer(source='to_uom', read_only=True)
+    conversion_type_display = serializers.CharField(source='get_conversion_type_display', read_only=True)
+    
+    class Meta:
+        model = UoMConversion
+        fields = [
+            'id', 'from_uom', 'to_uom', 'from_uom_detail', 'to_uom_detail',
+            'conversion_type', 'conversion_type_display', 'multiplier', 'formula',
+            'is_active', 'is_bidirectional', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class ProductVariantQuickCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for quick-creating product variants from voucher/invoice forms
+    Task 1.6.2: AJAX Variant Creation
+    
+    Validates:
+    - Required fields (product, variant_name, variant_code)
+    - Unique variant_code across all variants
+    - Unique barcode (if provided)
+    - Valid price_adjustment format
+    """
+    
+    class Meta:
+        model = ProductVariant
+        fields = [
+            'id', 'product', 'variant_name', 'variant_code',
+            'price_adjustment', 'barcode', 'is_active'
+        ]
+        read_only_fields = ['id', 'is_active']
+    
+    def validate_variant_code(self, value):
+        """Ensure variant code is unique across all variants"""
+        if ProductVariant.objects.filter(variant_code=value).exists():
+            raise serializers.ValidationError(
+                f"Variant with code '{value}' already exists. Please use a unique code."
+            )
+        return value
+    
+    def validate_barcode(self, value):
+        """Ensure barcode is unique if provided"""
+        if value:  # Only validate if barcode is provided
+            if ProductVariant.objects.filter(barcode=value).exists():
+                raise serializers.ValidationError(
+                    f"Barcode '{value}' is already in use. Please use a unique barcode."
+                )
+        return value
+    
+    def validate_product(self, value):
+        """Ensure product exists and is active"""
+        if not value.is_active:
+            raise serializers.ValidationError(
+                "Cannot create variant for inactive product."
+            )
+        return value
+    
+    def create(self, validated_data):
+        """Create variant with default is_active=True"""
+        # Ensure is_active is True by default
+        validated_data['is_active'] = True
+        
+        # Set price_adjustment to 0 if not provided
+        if 'price_adjustment' not in validated_data:
+            validated_data['price_adjustment'] = 0
+        
+        return super().create(validated_data)

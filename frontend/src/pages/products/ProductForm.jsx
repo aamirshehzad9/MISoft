@@ -104,7 +104,7 @@ const ProductForm = () => {
             } else {
                 await productsService.create(formData);
             }
-            navigate('/products');
+            navigate('/dashboard/products');
         } catch (error) {
             console.error('Error saving product:', error);
             setErrors({ submit: 'Failed to save product. Please try again.' });
@@ -290,7 +290,7 @@ const ProductForm = () => {
                         <Button
                             type="button"
                             variant="secondary"
-                            onClick={() => navigate('/products')}
+                            onClick={() => navigate('/dashboard/products')}
                         >
                             Cancel
                         </Button>

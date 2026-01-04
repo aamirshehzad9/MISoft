@@ -1,7 +1,7 @@
 /* Sticky Header Logic - Transform & Blur */
 :root {
-    --header-height-normal: 90px;
-    --header-height-scrolled: 72px;
+    --header-height-normal: 99px;
+    --header-height-scrolled: 79px;
 }
 
 .sticky-header {
@@ -169,9 +169,9 @@
 
 /* HOTFIX: Crafted Logo - Round & Clean */
 .brand-logo-crafted {
-    height: 40px !important;
-    width: 40px !important;
-    /* Enforce square for circle crop */
+    height: 70px !important;
+    width: 70px !important;
+    /* Compensated size for internal image padding - actual visible logo ~49px */
     border-radius: 50% !important;
     /* "Rounded shape" */
     object-fit: cover !important;

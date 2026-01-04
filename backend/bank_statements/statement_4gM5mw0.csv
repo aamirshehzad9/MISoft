@@ -1,0 +1,4 @@
+Date,Description,Reference,Amount,Balance
+2025-01-01,Opening Balance,,1000.00,1000.00
+2025-01-02,Deposit,DEP001,500.00,1500.00
+2025-01-03,Payment,CHK001,-200.00,1300.00

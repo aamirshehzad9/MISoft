@@ -5,8 +5,11 @@
   "targets": {
     "gentleomegaai": {
       "hosting": {
-        "misoft": ["misoft-gentleomegaai"]
+        "misoft-gentleomegaai": [
+          "misoft-gentleomegaai"
+        ]
       }
     }
-  }
+  },
+  "etags": {}
 }

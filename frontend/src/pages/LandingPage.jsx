@@ -7,6 +7,12 @@ import FeatureGrid from '../components/landing/FeatureGrid';
 import AIValueSection from '../components/landing/AIValueSection';
 import PricingSection from '../components/landing/PricingSection';
 import FAQSection from '../components/landing/FAQSection';
+import AIExcellenceShowcase from '../components/landing/AIExcellenceShowcase';
+import ManufacturingBOMSection from '../components/landing/ManufacturingBOMSection';
+import TestimonialsSection from '../components/landing/TestimonialsSection';
+import AIAddonsMarketplace from '../components/landing/AIAddonsMarketplace';
+import OnboardingPreview from '../components/landing/OnboardingPreview';
+import DownloadSection from '../components/landing/DownloadSection';
 import Footer from '../components/landing/Footer';
 import './LandingPage.css';
 
@@ -37,8 +43,14 @@ const LandingPage = () => {
                     <HeroSection />
                     <HybridDeployment />
                     <FeatureGrid />
+                    <ManufacturingBOMSection />
                     <AIValueSection />
+                    <AIExcellenceShowcase />
+                    <AIAddonsMarketplace />
                     <PricingSection />
+                    <TestimonialsSection />
+                    <OnboardingPreview />
+                    <DownloadSection />
                     <FAQSection />
                 </main>
 
