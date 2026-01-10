@@ -22,9 +22,11 @@ const ProductionOrdersList = () => {
         try {
             setLoading(true);
             const data = await manufacturingService.getProductionOrders();
-            setOrders(data);
+            // Ensure data is an array
+            setOrders(Array.isArray(data) ? data : (data?.results || []));
         } catch (error) {
             console.error('Error fetching production orders:', error);
+            setOrders([]); // Set empty array on error
         } finally {
             setLoading(false);
         }

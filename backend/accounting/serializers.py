@@ -1,4 +1,3 @@
-```
 """
 Serializers for Accounting App
 Includes AuditLog serializer for audit viewer
@@ -10,17 +9,23 @@ from accounting.models import (
     Cheque, BankTransfer, Invoice, InvoiceItem, VoucherV2, VoucherEntryV2,
     AccountV2, AssetCategory, FixedAsset, FiscalYear, TaxCode, TaxMasterV2,
     TaxGroupV2, TaxGroupItemV2, CurrencyV2, ExchangeRateV2, CostCenterV2, DepartmentV2, EntityV2, 
-    BankAccount, FairValueMeasurement, FXRevaluationLog
+    BankAccount, FairValueMeasurement, FXRevaluationLog, ReferenceDefinition,
+    ApprovalWorkflow, ApprovalLevel, ApprovalRequest, ApprovalAction,
+    RecurringTransaction,
 )
 
 # ... (Existing code) ...
+
 
 class BankStatementLineSerializer(serializers.ModelSerializer):
     """Serializer for Bank Statement Lines"""
     class Meta:
         model = BankStatementLine
-        fields = ['id', 'date', 'description', 'reference', 'amount', 'balance', 'is_reconciled', 'matched_voucher_line']
+        fields = ['id', 'date', 'description', 'reference', 'amount', 'balance', 
+                  'is_reconciled', 'matched_voucher_line']
         read_only_fields = ['is_reconciled', 'matched_voucher_line']
+
+
 
 class BankStatementSerializer(serializers.ModelSerializer):
     """Serializer for Bank Statements"""
@@ -249,7 +254,7 @@ class VoucherEntryV2Serializer(serializers.ModelSerializer):
     class Meta:
         model = VoucherEntryV2
         fields = [
-            'id', 'line_number', 'account', 'account_code', 'account_name',
+            'id', 'account', 'account_code', 'account_name',
             'description', 'debit_amount', 'credit_amount', 'cost_center', 'department'
         ]
 
@@ -267,16 +272,45 @@ class VoucherV2Serializer(serializers.ModelSerializer):
     approved_by_username = serializers.CharField(source='approved_by.username', read_only=True)
     entries = VoucherEntryV2Serializer(many=True, read_only=True, source='entries_v2')
     
+    # Approval workflow integration (Task 1.3.4)
+    requires_approval = serializers.SerializerMethodField()
+    can_be_posted = serializers.SerializerMethodField()
+    approval_request = serializers.PrimaryKeyRelatedField(read_only=True)
+    
     class Meta:
         model = VoucherV2
         fields = [
             'id', 'voucher_number', 'voucher_type', 'voucher_type_display', 'voucher_date',
             'reference_number', 'user_references', 'party', 'party_name', 'total_amount',
             'currency', 'currency_code', 'exchange_rate', 'status', 'status_display',
-            'approved_by', 'approved_by_username', 'approved_at', 'narration',
-            'created_at', 'created_by', 'created_by_username', 'updated_at', 'entries'
+            'approved_by', 'approved_by_username', 'approved_at', 
+            'approval_status', 'approval_request', 'requires_approval', 'can_be_posted',
+            'narration', 'created_at', 'created_by', 'created_by_username', 'updated_at', 'entries'
         ]
-        read_only_fields = ['created_at', 'created_by', 'updated_at']
+        read_only_fields = ['created_at', 'created_by', 'updated_at', 'approval_status', 'approved_by', 'approved_at', 'voucher_number']
+
+    def get_requires_approval(self, obj):
+        return obj.requires_approval()
+        
+    def get_can_be_posted(self, obj):
+        can_post, reason = obj.can_be_posted()
+        return can_post
+
+    def validate(self, attrs):
+        # Prevent posting if approval required but not obtained
+        if 'status' in attrs and attrs['status'] == 'posted':
+            # This validation is complex because we need to check the instance
+            # which might not be available in creation (but status shouldn't be posted on creation)
+            if self.instance:
+                can_post, reason = self.instance.can_be_posted()
+                if not can_post:
+                    raise serializers.ValidationError({"status": f"Cannot post voucher: {reason}"})
+            elif attrs.get('total_amount'):
+                # For new instances, we might not have full context, but posting immediately 
+                # on creation is generally restricted for high-value items
+                pass
+                
+        return attrs
 
 
 class VoucherV2ListSerializer(serializers.ModelSerializer):
@@ -289,7 +323,7 @@ class VoucherV2ListSerializer(serializers.ModelSerializer):
         model = VoucherV2
         fields = [
             'id', 'voucher_number', 'voucher_type', 'voucher_type_display', 'voucher_date',
-            'party_name', 'total_amount', 'status', 'status_display'
+            'party_name', 'total_amount', 'status', 'status_display', 'approval_status'
         ]
 
 
@@ -654,15 +688,14 @@ class EntityV2Serializer(serializers.ModelSerializer):
 
 class BankAccountSerializer(serializers.ModelSerializer):
     """Serializer for Bank Account"""
-    currency_code = serializers.CharField(source='currency.currency_code', read_only=True)
-    currency_name = serializers.CharField(source='currency.currency_name', read_only=True)
     
     class Meta:
         model = BankAccount
-        fields = ['id', 'account_number', 'account_name', 'bank_name', 'branch', 
-                  'currency', 'currency_code', 'currency_name', 'opening_balance', 
-                  'current_balance', 'is_active', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'current_balance', 'created_at', 'updated_at']
+        fields = ['id', 'account_number', 'account_name', 'bank_name', 'branch_name', 
+                  'iban', 'swift_code', 'gl_account', 'currency', 'opening_balance', 
+                  'current_balance', 'is_active', 'created_at']
+        read_only_fields = ['id', 'current_balance', 'created_at']
+
 
 
 # ============================================================================
@@ -729,3 +762,248 @@ class FXRevaluationLogSerializer(serializers.ModelSerializer):
                   'auto_posted', 'reversal_created', 'revaluation_details',
                   'error_message', 'notes', 'created_at', 'created_by']
         read_only_fields = ['id', 'created_at', 'created_by']
+
+
+# ============================================================================
+# REFERENCE DEFINITION SERIALIZER
+# ============================================================================
+
+class ReferenceDefinitionSerializer(serializers.ModelSerializer):
+    """
+    Serializer for ReferenceDefinition model
+    Used for dynamic custom fields in Invoices and Vouchers
+    Supports user-defined reference fields with validation rules
+    """
+    model_name_display = serializers.CharField(source='get_model_name_display', read_only=True)
+    data_type_display = serializers.CharField(source='get_data_type_display', read_only=True)
+    
+    class Meta:
+        model = ReferenceDefinition
+        fields = [
+            'id', 'model_name', 'model_name_display', 'field_key', 'field_label', 
+            'data_type', 'data_type_display', 'is_required', 'is_unique', 'is_active',
+            'validation_regex', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate_field_key(self, value):
+        """Validate field key is alphanumeric with underscores only"""
+        import re
+        if not re.match(r'^[a-z0-9_]+$', value):
+            raise serializers.ValidationError(
+                "Field key must contain only lowercase letters, numbers, and underscores"
+            )
+        return value
+
+
+# ============================================================================
+# APPROVAL WORKFLOW SERIALIZERS (Module 1.3.3)
+# ============================================================================
+
+class ApprovalWorkflowSerializer(serializers.ModelSerializer):
+    """Serializer for ApprovalWorkflow model"""
+    
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    levels_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ApprovalWorkflow
+        fields = [
+            'id',
+            'workflow_name',
+            'description',
+            'document_type',
+            'is_active',
+            'created_by',
+            'created_by_username',
+            'created_at',
+            'levels_count',
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'created_by_username', 'levels_count']
+    
+    def get_levels_count(self, obj):
+        """Get count of approval levels"""
+        return obj.levels.count()
+    
+    def create(self, validated_data):
+        """Create workflow with current user as creator"""
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class ApprovalLevelSerializer(serializers.ModelSerializer):
+    """Serializer for ApprovalLevel model"""
+    
+    approver_username = serializers.CharField(source='approver.username', read_only=True)
+    workflow_name = serializers.CharField(source='workflow.workflow_name', read_only=True)
+    
+    class Meta:
+        model = ApprovalLevel
+        fields = [
+            'id',
+            'workflow',
+            'workflow_name',
+            'level_number',
+            'approver',
+            'approver_username',
+            'min_amount',
+            'max_amount',
+            'is_mandatory',
+        ]
+        read_only_fields = ['id', 'approver_username', 'workflow_name']
+    
+    def validate(self, data):
+        """Validate approval level data"""
+        # Ensure min_amount <= max_amount
+        if data.get('min_amount') and data.get('max_amount'):
+            if data['min_amount'] > data['max_amount']:
+                raise serializers.ValidationError(
+                    "min_amount must be less than or equal to max_amount"
+                )
+        
+        # Ensure level_number is unique within workflow
+        workflow = data.get('workflow')
+        level_number = data.get('level_number')
+        
+        if workflow and level_number:
+            existing = ApprovalLevel.objects.filter(
+                workflow=workflow,
+                level_number=level_number
+            )
+            
+            # Exclude current instance if updating
+            if self.instance:
+                existing = existing.exclude(id=self.instance.id)
+            
+            if existing.exists():
+                raise serializers.ValidationError(
+                    f"Level {level_number} already exists for this workflow"
+                )
+        
+        return data
+
+
+class ApprovalActionSerializer(serializers.ModelSerializer):
+    """Serializer for ApprovalAction model (read-only)"""
+    
+    approver_username = serializers.CharField(source='approver.username', read_only=True)
+    approval_request_info = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ApprovalAction
+        fields = [
+            'id',
+            'approval_request',
+            'approval_request_info',
+            'level_number',
+            'approver',
+            'approver_username',
+            'action',
+            'comments',
+            'action_date',
+            'ip_address',
+        ]
+        read_only_fields = [
+            'id', 'approval_request', 'approval_request_info', 'level_number',
+            'approver', 'approver_username', 'action', 'comments', 'action_date', 'ip_address'
+        ]
+    
+    def get_approval_request_info(self, obj):
+        """Get basic info about the approval request"""
+        return {
+            'id': obj.approval_request.id,
+            'document_type': obj.approval_request.document_type,
+            'document_id': obj.approval_request.document_id,
+            'status': obj.approval_request.status,
+        }
+
+
+class ApprovalRequestSerializer(serializers.ModelSerializer):
+    """Serializer for ApprovalRequest model"""
+    
+    workflow_name = serializers.CharField(source='workflow.workflow_name', read_only=True)
+    requester_username = serializers.CharField(source='requester.username', read_only=True)
+    current_approver_username = serializers.CharField(source='current_approver.username', read_only=True)
+    actions = ApprovalActionSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ApprovalRequest
+        fields = [
+            'id',
+            'workflow',
+            'workflow_name',
+            'document_type',
+            'document_id',
+            'amount',
+            'current_level',
+            'status',
+            'requester',
+            'requester_username',
+            'current_approver',
+            'current_approver_username',
+            'request_date',
+            'completion_date',
+            'actions',
+        ]
+        read_only_fields = [
+            'id',
+            'workflow',
+            'current_level',
+            'status',
+            'requester',
+            'current_approver',
+            'request_date',
+            'completion_date',
+            'workflow_name',
+            'requester_username',
+            'current_approver_username',
+            'actions',
+        ]
+    
+    def create(self, validated_data):
+        """Create approval request using ApprovalService"""
+        from accounting.services import ApprovalService
+        
+        service = ApprovalService()
+        
+        # Initiate approval workflow
+        approval_request = service.initiate_approval(
+            document_type=validated_data['document_type'],
+            document_id=validated_data['document_id'],
+            amount=validated_data['amount'],
+            requester=self.context['request'].user
+        )
+        
+        return approval_request
+
+
+class ApprovalRequestActionSerializer(serializers.Serializer):
+    """Serializer for approval request actions (approve/reject/delegate)"""
+    
+    comments = serializers.CharField(required=False, allow_blank=True)
+    ip_address = serializers.IPAddressField(required=False, default='0.0.0.0')
+    delegate_to = serializers.IntegerField(required=False)  # User ID for delegation
+    
+    def validate_delegate_to(self, value):
+        """Validate delegate_to user exists"""
+        if value:
+            try:
+                User.objects.get(id=value)
+            except User.DoesNotExist:
+                raise serializers.ValidationError(f"User with ID {value} does not exist")
+        return value
+
+# ============================================
+# RECURRING TRANSACTION SERIALIZERS (Task 1.4)
+# ============================================
+
+class RecurringTransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecurringTransaction
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+    def validate_template_data(self, value):
+        if not isinstance(value, dict):
+             raise serializers.ValidationError("Template data must be a valid JSON object.")
+        return value

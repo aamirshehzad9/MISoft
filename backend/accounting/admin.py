@@ -6,7 +6,9 @@ from .models import (
     # V2 models
     AccountV2, CostCenterV2, DepartmentV2, CurrencyV2, ExchangeRateV2,
     TaxMasterV2, TaxGroupV2, TaxGroupItemV2, VoucherV2, VoucherEntryV2,
-    FairValueMeasurement, Entity, FXRevaluationLog, NumberingScheme
+    FairValueMeasurement, Entity, FXRevaluationLog, NumberingScheme,
+    # Approval models
+    ApprovalWorkflow, ApprovalLevel, ApprovalRequest, ApprovalAction
 )
 
 
@@ -226,11 +228,11 @@ class VoucherV2Admin(admin.ModelAdmin):
 
 @admin.register(FairValueMeasurement)
 class FairValueMeasurementAdmin(admin.ModelAdmin):
-    list_display = ['account', 'measurement_date', 'fair_value_level', 'fair_value', 'carrying_amount', 'gain_loss', 'is_approved']
-    list_filter = ['fair_value_level', 'valuation_technique', 'measurement_purpose', 'recognized_in_pl', 'measurement_date']
+    list_display = ['account', 'measurement_date', 'fair_value_level', 'fair_value', 'carrying_amount', 'gain_loss']
+    list_filter = ['fair_value_level', 'valuation_technique', 'measurement_purpose', 'measurement_date']
     search_fields = ['account__code', 'account__name', 'external_valuer', 'notes']
     ordering = ['-measurement_date', '-created_at']
-    readonly_fields = ['gain_loss', 'created_at', 'updated_at', 'approved_at']
+    readonly_fields = ['created_at', 'updated_at', 'approved_at']
     
     fieldsets = (
         ('Account Information', {
@@ -257,6 +259,8 @@ class FairValueMeasurementAdmin(admin.ModelAdmin):
             'fields': ('notes',)
         }),
     )
+
+
 
 
 @admin.register(Entity)
@@ -417,4 +421,89 @@ class NumberingSchemeAdmin(admin.ModelAdmin):
             request,
             f'Successfully deactivated {updated} numbering scheme(s).'
         )
+
+
+# ============================================
+# APPROVAL WORKFLOW ADMIN
+# ============================================
+
+class ApprovalLevelInline(admin.TabularInline):
+    model = ApprovalLevel
+    extra = 1
+    fields = ['level_number', 'approver', 'min_amount', 'max_amount', 'is_mandatory']
+    ordering = ['level_number']
+
+
+@admin.register(ApprovalWorkflow)
+class ApprovalWorkflowAdmin(admin.ModelAdmin):
+    list_display = ['workflow_name', 'document_type', 'is_active', 'created_by', 'created_at']
+    list_filter = ['document_type', 'is_active']
+    search_fields = ['workflow_name']
+    inlines = [ApprovalLevelInline]
+    ordering = ['workflow_name']
+    
+    fieldsets = (
+        ('Workflow Details', {
+            'fields': ('workflow_name', 'description')
+        }),
+        ('Configuration', {
+            'fields': ('document_type', 'is_active')
+        }),
+        ('Audit Trail', {
+            'fields': ('created_by', 'created_at')
+        }),
+    )
+    readonly_fields = ['created_at']
+    
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+class ApprovalActionInline(admin.TabularInline):
+    model = ApprovalAction
+    extra = 0
+    fields = ['action', 'approver', 'action_date', 'comments', 'ip_address']
+    readonly_fields = ['action', 'approver', 'action_date', 'comments', 'ip_address']
+    can_delete = False
+    ordering = ['-action_date']
+
+
+@admin.register(ApprovalRequest)
+class ApprovalRequestAdmin(admin.ModelAdmin):
+    list_display = ['document_type', 'document_id', 'requester', 'amount', 'status', 'current_level', 'current_approver', 'request_date']
+    list_filter = ['status', 'document_type', 'workflow']
+    search_fields = ['document_id', 'requester__username']
+    inlines = [ApprovalActionInline]
+    readonly_fields = ['request_date', 'completion_date']
+    ordering = ['-request_date']
+    
+    fieldsets = (
+        ('Request Details', {
+            'fields': ('workflow', 'document_type', 'document_id', 'amount', 'requester')
+        }),
+        ('Status', {
+            'fields': ('status', 'current_level', 'current_approver')
+        }),
+        ('Timestamps', {
+            'fields': ('request_date', 'completion_date')
+        }),
+    )
+
+
+@admin.register(ApprovalAction)
+class ApprovalActionAdmin(admin.ModelAdmin):
+    list_display = ['approval_request', 'action', 'approver', 'action_date']
+    list_filter = ['action', 'action_date']
+    search_fields = ['approver__username', 'comments']
+    readonly_fields = ['approval_request', 'approver', 'action', 'comments', 'ip_address', 'action_date']
+    ordering = ['-action_date']
+    
+    def has_add_permission(self, request):
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        return False
+
 

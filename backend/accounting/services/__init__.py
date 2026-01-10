@@ -1,3 +1,10 @@
-from .audit_service import AuditService
-from .bank_reconciliation_service import BankReconciliationService
+"""
+Accounting Services Module
+
+This module contains business logic services for the accounting application.
+"""
+
+from .approval_service import ApprovalService
 from .numbering_service import NumberingService
+
+__all__ = ['ApprovalService', 'NumberingService']

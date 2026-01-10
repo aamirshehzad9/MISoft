@@ -1,6 +1,8 @@
 from django.db import models
+from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 from decimal import Decimal
 from partners.models import BusinessPartner
 
@@ -653,6 +655,12 @@ class CostCenterV2(models.Model):
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
+    
+    # Task 1.6.1: Enhancements
+    budget_allocation = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    is_profit_center = models.BooleanField(default=False)
+    manager = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_cost_centers')
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -893,6 +901,31 @@ class VoucherV2(models.Model):
     )
     approved_at = models.DateTimeField(null=True, blank=True)
     
+    # Approval Workflow Integration (Task 1.3.4)
+    APPROVAL_STATUS_CHOICES = [
+        ('not_required', 'Not Required'),
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    approval_status = models.CharField(
+        max_length=20,
+        choices=APPROVAL_STATUS_CHOICES,
+        default='not_required',
+        db_index=True,
+        help_text="Approval workflow status (IAS 1 - Internal Controls)"
+    )
+    
+    approval_request = models.ForeignKey(
+        'ApprovalRequest',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='voucher_v2',
+        help_text="Linked approval request"
+    )
+    
     # Narration
     narration = models.TextField(blank=True)
     
@@ -945,6 +978,84 @@ class VoucherV2(models.Model):
             )
         return True
     
+    def requires_approval(self):
+        """
+        Check if this voucher requires approval workflow
+        
+        Task 1.3.4: Integration with Existing Models
+        IAS 1 - Internal Controls: Approval required for high-value transactions
+        
+        Returns:
+            bool: True if approval is required, False otherwise
+        """
+        # Check if there's an active approval workflow for this voucher type
+        from accounting.models import ApprovalWorkflow, ApprovalLevel
+        
+        try:
+            workflow = ApprovalWorkflow.objects.filter(
+                document_type='voucher',
+                is_active=True
+            ).first()
+            
+            if not workflow:
+                return False
+            
+            # Check if amount exceeds any approval level threshold
+            levels = ApprovalLevel.objects.filter(
+                workflow=workflow,
+                min_amount__lte=self.total_amount,
+                max_amount__gte=self.total_amount
+            )
+            
+            return levels.exists()
+            
+        except Exception:
+            return False
+    
+    def can_be_posted(self):
+        """
+        Check if voucher can be posted based on approval status
+        
+        Task 1.3.4: Integration with Existing Models
+        IAS 1 - Internal Controls: Prevent unauthorized posting
+        
+        Returns:
+            tuple: (bool, str) - (can_post, reason)
+        """
+        if self.approval_status == 'pending':
+            return False, "Voucher is pending approval"
+        
+        if self.approval_status == 'rejected':
+            return False, "Voucher has been rejected"
+        
+        if self.requires_approval() and self.approval_status != 'approved':
+            return False, "Approval is required but not obtained"
+        
+        return True, "Voucher can be posted"
+    
+    def initiate_approval_workflow(self):
+        """
+        Initiate approval workflow for this voucher
+        
+        Task 1.3.4: Integration with Existing Models
+        IAS 1 - Internal Controls: Initiate approval process
+        
+        Returns:
+            ApprovalRequest: Created approval request instance
+        """
+        from accounting.services import ApprovalService
+        
+        service = ApprovalService()
+        approval_request = service.initiate_approval_for_voucher(self)
+        
+        # Update voucher status
+        self.approval_status = 'pending'
+        self.approval_request = approval_request
+        self.save(update_fields=['approval_status', 'approval_request'])
+        
+        return approval_request
+
+    
     def save(self, *args, **kwargs):
         """Override save to auto-generate voucher number"""
         # Auto-generate voucher number if not provided
@@ -981,6 +1092,13 @@ class VoucherV2(models.Model):
                 from datetime import datetime
                 timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
                 self.voucher_number = f"{self.voucher_type}-{timestamp}"
+        
+        # Task 1.3.4: Approval workflow integration (IAS 1 - Internal Controls)
+        # Check if trying to post without approval
+        if self.status == 'posted':
+            can_post, reason = self.can_be_posted()
+            if not can_post:
+                raise ValueError(f"Cannot post voucher: {reason}")
         
         super().save(*args, **kwargs)
     
@@ -2679,117 +2797,659 @@ class EntityV2(models.Model):
 # BANK ACCOUNT MANAGEMENT
 # ============================================
 
-class BankAccount(models.Model):
-    """Bank account management for banking operations"""
-    account_number = models.CharField(max_length=50, unique=True)
-    account_name = models.CharField(max_length=200)
-    bank_name = models.CharField(max_length=200)
-    branch = models.CharField(max_length=200, blank=True)
-    currency = models.ForeignKey(
-        CurrencyV2,
-        on_delete=models.PROTECT,
-        related_name='bank_accounts'
-    )
-    opening_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-    current_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        ordering = ['bank_name', 'account_number']
-        verbose_name = 'Bank Account'
-        verbose_name_plural = 'Bank Accounts'
-        db_table = 'accounting_bankaccount'
-    
-    def __str__(self):
-        return f"{self.bank_name} - {self.account_number}"
+## ============================================
+## DUPLICATE CODE FOUND - COMMENTED OUT
+## ============================================
+## These models are duplicates of earlier definitions in this file.
+## Original models are located at:
+## - BankAccount (Line 386 - LEGACY version)
+## - BankStatement (Line 1955)
+## - BankStatementLine (Line 1992)
+## - FairValueMeasurement (Line 1088 - Comprehensive IFRS 13 version)
+## 
+## Please use the original model definitions above.
+## ============================================
+
+## class BankAccount(models.Model):
+##     """Bank account management for banking operations"""
+##     account_number = models.CharField(max_length=50, unique=True)
+##     account_name = models.CharField(max_length=200)
+##     bank_name = models.CharField(max_length=200)
+##     branch = models.CharField(max_length=200, blank=True)
+##     currency = models.ForeignKey(
+##         CurrencyV2,
+##         on_delete=models.PROTECT,
+##         related_name='bank_accounts'
+##     )
+##     opening_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+##     current_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+##     is_active = models.BooleanField(default=True)
+##     created_at = models.DateTimeField(auto_now_add=True)
+##     updated_at = models.DateTimeField(auto_now=True)
+##     
+##     class Meta:
+##         ordering = ['bank_name', 'account_number']
+##         verbose_name = 'Bank Account'
+##         verbose_name_plural = 'Bank Accounts'
+##         db_table = 'accounting_bankaccount'
+##     
+##     def __str__(self):
+##         return f"{self.bank_name} - {self.account_number}"
+
+
+## # ============================================
+## # BANK STATEMENT MANAGEMENT
+## # ============================================
+
+## class BankStatement(models.Model):
+##     """Bank statement for reconciliation"""
+##     bank_account = models.ForeignKey(
+##         BankAccount,
+##         on_delete=models.CASCADE,
+##         related_name='statements'
+##     )
+##     statement_date = models.DateField()
+##     opening_balance = models.DecimalField(max_digits=15, decimal_places=2)
+##     closing_balance = models.DecimalField(max_digits=15, decimal_places=2)
+##     is_reconciled = models.BooleanField(default=False)
+##     created_at = models.DateTimeField(auto_now_add=True)
+##     updated_at = models.DateTimeField(auto_now=True)
+##     
+##     class Meta:
+##         ordering = ['-statement_date']
+##         verbose_name = 'Bank Statement'
+##         verbose_name_plural = 'Bank Statements'
+##         db_table = 'accounting_bankstatement'
+##     
+##     def __str__(self):
+##         return f"{self.bank_account.bank_name} - {self.statement_date}"
+
+
+## class BankStatementLine(models.Model):
+##     """Individual transactions in bank statement"""
+##     statement = models.ForeignKey(
+##         BankStatement,
+##         on_delete=models.CASCADE,
+##         related_name='lines'
+##     )
+##     transaction_date = models.DateField()
+##     description = models.CharField(max_length=500)
+##     reference = models.CharField(max_length=100, blank=True)
+##     debit = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+##     credit = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+##     balance = models.DecimalField(max_digits=15, decimal_places=2)
+##     is_reconciled = models.BooleanField(default=False)
+##     
+##     class Meta:
+##         ordering = ['transaction_date', 'id']
+##         verbose_name = 'Bank Statement Line'
+##         verbose_name_plural = 'Bank Statement Lines'
+##         db_table = 'accounting_bankstatementline'
+##     
+##     def __str__(self):
+##         return f"{self.transaction_date} - {self.description}"
+
+
+## # ============================================
+## # FAIR VALUE MEASUREMENT (IAS 39/IFRS 9)
+## # ============================================
+
+## class FairValueMeasurement(models.Model):
+##     """Fair value measurement for IAS 39/IFRS 9 compliance"""
+##     LEVEL_CHOICES = [
+##         ('1', 'Level 1 - Quoted prices in active markets'),
+##         ('2', 'Level 2 - Observable inputs other than quoted prices'),
+##         ('3', 'Level 3 - Unobservable inputs'),
+##     ]
+##     
+##     asset = models.ForeignKey(
+##         FixedAsset,
+##         on_delete=models.CASCADE,
+##         related_name='fair_value_measurements'
+##     )
+##     measurement_date = models.DateField()
+##     fair_value = models.DecimalField(max_digits=15, decimal_places=2)
+##     valuation_technique = models.CharField(max_length=200)
+##     level = models.CharField(max_length=1, choices=LEVEL_CHOICES)
+##     notes = models.TextField(blank=True)
+##     created_at = models.DateTimeField(auto_now_add=True)
+##     updated_at = models.DateTimeField(auto_now=True)
+##     
+##     class Meta:
+##         ordering = ['-measurement_date']
+##         verbose_name = 'Fair Value Measurement'
+##         verbose_name_plural = 'Fair Value Measurements'
+##         db_table = 'accounting_fairvaluemeasurement'
+##     
+##     def __str__(self):
+##         return f"{self.asset.asset_name} - {self.measurement_date} - Level {self.level}"
 
 
 # ============================================
-# BANK STATEMENT MANAGEMENT
+# APPROVAL WORKFLOW SYSTEM (IAS 1 - Internal Controls)
 # ============================================
+# Module 1.3: Multi-level approval system for financial controls
 
-class BankStatement(models.Model):
-    """Bank statement for reconciliation"""
-    bank_account = models.ForeignKey(
-        BankAccount,
-        on_delete=models.CASCADE,
-        related_name='statements'
-    )
-    statement_date = models.DateField()
-    opening_balance = models.DecimalField(max_digits=15, decimal_places=2)
-    closing_balance = models.DecimalField(max_digits=15, decimal_places=2)
-    is_reconciled = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+class ApprovalWorkflow(models.Model):
+    """
+    Approval workflow configuration
+    Task 1.3.1: Create ApprovalWorkflow Model
     
-    class Meta:
-        ordering = ['-statement_date']
-        verbose_name = 'Bank Statement'
-        verbose_name_plural = 'Bank Statements'
-        db_table = 'accounting_bankstatement'
-        unique_together = ['bank_account', 'statement_date']
+    IFRS/IASB Compliance:
+    - IAS 1: Internal Controls and Governance
+    - Ensures proper authorization of financial transactions
+    - Supports segregation of duties
+    - Maintains audit trail for approvals
+    """
     
-    def __str__(self):
-        return f"{self.bank_account.bank_name} - {self.statement_date}"
-
-
-class BankStatementLine(models.Model):
-    """Bank statement line items"""
-    statement = models.ForeignKey(
-        BankStatement,
-        on_delete=models.CASCADE,
-        related_name='lines'
-    )
-    transaction_date = models.DateField()
-    description = models.CharField(max_length=500)
-    reference = models.CharField(max_length=100, blank=True)
-    debit = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-    credit = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-    balance = models.DecimalField(max_digits=15, decimal_places=2)
-    is_reconciled = models.BooleanField(default=False)
-    
-    class Meta:
-        ordering = ['transaction_date', 'id']
-        verbose_name = 'Bank Statement Line'
-        verbose_name_plural = 'Bank Statement Lines'
-        db_table = 'accounting_bankstatementline'
-    
-    def __str__(self):
-        return f"{self.transaction_date} - {self.description}"
-
-
-# ============================================
-# FAIR VALUE MEASUREMENT (IAS 39/IFRS 9)
-# ============================================
-
-class FairValueMeasurement(models.Model):
-    """Fair value measurement for IAS 39/IFRS 9 compliance"""
-    LEVEL_CHOICES = [
-        ('1', 'Level 1 - Quoted prices in active markets'),
-        ('2', 'Level 2 - Observable inputs other than quoted prices'),
-        ('3', 'Level 3 - Unobservable inputs'),
+    DOCUMENT_TYPE_CHOICES = [
+        ('voucher', 'Voucher'),
+        ('purchase_order', 'Purchase Order'),
+        ('purchase_requisition', 'Purchase Requisition'),
+        ('sales_order', 'Sales Order'),
+        ('sales_quotation', 'Sales Quotation'),
+        ('payment', 'Payment'),
+        ('receipt', 'Receipt'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('journal_entry', 'Journal Entry'),
+        ('asset_acquisition', 'Asset Acquisition'),
+        ('asset_disposal', 'Asset Disposal'),
+        ('budget', 'Budget'),
+        ('other', 'Other'),
     ]
     
-    asset = models.ForeignKey(
-        FixedAsset,
-        on_delete=models.CASCADE,
-        related_name='fair_value_measurements'
+    # Workflow identification
+    workflow_name = models.CharField(
+        max_length=200,
+        help_text="Name of the approval workflow"
     )
-    measurement_date = models.DateField()
-    fair_value = models.DecimalField(max_digits=15, decimal_places=2)
-    valuation_technique = models.CharField(max_length=200)
-    level = models.CharField(max_length=1, choices=LEVEL_CHOICES)
-    notes = models.TextField(blank=True)
+    description = models.TextField(
+        blank=True,
+        help_text="Description of the workflow"
+    )
+    
+    # Document type this workflow applies to
+    document_type = models.CharField(
+        max_length=50,
+        choices=DOCUMENT_TYPE_CHOICES,
+        help_text="Type of document this workflow applies to"
+    )
+    
+    # Status
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this workflow is currently active"
+    )
+    
+    # Audit trail
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='approval_workflows_created'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['-measurement_date']
-        verbose_name = 'Fair Value Measurement'
-        verbose_name_plural = 'Fair Value Measurements'
-        db_table = 'accounting_fairvaluemeasurement'
+        ordering = ['workflow_name']
+        verbose_name = 'Approval Workflow'
+        verbose_name_plural = 'Approval Workflows'
+        db_table = 'accounting_approvalworkflow'
+        indexes = [
+            models.Index(fields=['document_type', 'is_active']),
+        ]
     
     def __str__(self):
-        return f"{self.asset.asset_name} - {self.measurement_date} - Level {self.level}"
+        return f"{self.workflow_name} ({self.document_type})"
+    
+    def clean(self):
+        """Validate that only one active workflow exists per document type"""
+        from django.core.exceptions import ValidationError
+        
+        if self.is_active:
+            # Check for other active workflows for same document type
+            existing = ApprovalWorkflow.objects.filter(
+                document_type=self.document_type,
+                is_active=True
+            ).exclude(pk=self.pk)
+            
+            if existing.exists():
+                raise ValidationError(
+                    f"An active workflow already exists for {self.get_document_type_display()}. "
+                    "Please deactivate it first."
+                )
+
+
+class ApprovalLevel(models.Model):
+    """
+    Individual approval level within a workflow
+    Task 1.3.1: Create ApprovalWorkflow Model
+    
+    Defines who approves at each level and amount thresholds
+    """
+    
+    # Workflow this level belongs to
+    workflow = models.ForeignKey(
+        ApprovalWorkflow,
+        on_delete=models.CASCADE,
+        related_name='levels'
+    )
+    
+    # Level number (1, 2, 3, etc.)
+    level_number = models.IntegerField(
+        help_text="Approval level number (1 = first level)"
+    )
+    
+    # Approver
+    approver = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='approval_levels',
+        help_text="User who approves at this level"
+    )
+    
+    # Amount thresholds
+    min_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Minimum amount for this level"
+    )
+    max_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('999999999.99'),
+        help_text="Maximum amount for this level"
+    )
+    
+    # Properties
+    is_mandatory = models.BooleanField(
+        default=True,
+        help_text="Whether this level is mandatory"
+    )
+    
+    class Meta:
+        ordering = ['workflow', 'level_number']
+        verbose_name = 'Approval Level'
+        verbose_name_plural = 'Approval Levels'
+        db_table = 'accounting_approvallevel'
+        unique_together = [['workflow', 'level_number']]
+        indexes = [
+            models.Index(fields=['workflow', 'level_number']),
+            models.Index(fields=['approver']),
+        ]
+    
+    def __str__(self):
+        return f"Level {self.level_number} - {self.approver.username} ({self.min_amount} - {self.max_amount})"
+    
+    def clean(self):
+        """Validate amount range"""
+        from django.core.exceptions import ValidationError
+        
+        if self.min_amount >= self.max_amount:
+            raise ValidationError("Minimum amount must be less than maximum amount")
+
+
+class ApprovalRequest(models.Model):
+    """
+    Approval request for a specific document
+    Task 1.3.1: Create ApprovalWorkflow Model
+    
+    Tracks the approval process for a document
+    """
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    # Workflow being used
+    workflow = models.ForeignKey(
+        ApprovalWorkflow,
+        on_delete=models.PROTECT,
+        related_name='approval_requests'
+    )
+    
+    # Document being approved (using GenericForeignKey for flexibility)
+    document_type = models.CharField(
+        max_length=50,
+        help_text="Type of document (e.g., 'voucher', 'purchase_order')"
+    )
+    document_id = models.IntegerField(
+        help_text="ID of the document being approved"
+    )
+    
+    # Amount (for routing to correct approval level)
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        help_text="Amount of the document"
+    )
+    
+    # Current status
+    current_level = models.IntegerField(
+        default=1,
+        help_text="Current approval level"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    
+    # Participants
+    requester = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='approval_requests_initiated',
+        help_text="User who initiated the approval request"
+    )
+    current_approver = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='approval_requests_pending',
+        null=True,
+        blank=True,
+        help_text="Current approver"
+    )
+    
+    # Timestamps
+    request_date = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the approval was requested"
+    )
+    completion_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the approval was completed (approved/rejected)"
+    )
+    
+    class Meta:
+        ordering = ['-request_date']
+        verbose_name = 'Approval Request'
+        verbose_name_plural = 'Approval Requests'
+        db_table = 'accounting_approvalrequest'
+        indexes = [
+            models.Index(fields=['document_type', 'document_id']),
+            models.Index(fields=['status']),
+            models.Index(fields=['current_approver', 'status']),
+            models.Index(fields=['requester']),
+        ]
+    
+    def __str__(self):
+        return f"Approval Request for {self.document_type} #{self.document_id} - {self.status}"
+
+
+class ApprovalAction(models.Model):
+    """
+    Individual approval action (approve/reject/delegate)
+    Task 1.3.1: Create ApprovalWorkflow Model
+    
+    IFRS/IASB Compliance:
+    - Maintains complete audit trail
+    - Non-repudiation (who did what and when)
+    - Immutable once created
+    """
+    
+    ACTION_CHOICES = [
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('delegated', 'Delegated'),
+        ('returned', 'Returned for Revision'),
+    ]
+    
+    # Approval request this action belongs to
+    approval_request = models.ForeignKey(
+        ApprovalRequest,
+        on_delete=models.PROTECT,
+        related_name='actions'
+    )
+    
+    # Level at which this action was taken
+    level_number = models.IntegerField(
+        help_text="Approval level number"
+    )
+    
+    # Who took the action
+    approver = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='approval_actions',
+        help_text="User who took this action"
+    )
+    
+    # What action was taken
+    action = models.CharField(
+        max_length=20,
+        choices=ACTION_CHOICES,
+        help_text="Action taken by approver"
+    )
+    
+    # Comments
+    comments = models.TextField(
+        blank=True,
+        help_text="Approver's comments"
+    )
+    
+    # Audit trail (IFRS requirement)
+    action_date = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the action was taken"
+    )
+    ip_address = models.GenericIPAddressField(
+        help_text="IP address of the approver"
+    )
+    
+    class Meta:
+        ordering = ['approval_request', 'level_number', 'action_date']
+        verbose_name = 'Approval Action'
+        verbose_name_plural = 'Approval Actions'
+        db_table = 'accounting_approvalaction'
+        indexes = [
+            models.Index(fields=['approval_request', 'level_number']),
+            models.Index(fields=['approver', 'action_date']),
+        ]
+    
+    def __str__(self):
+        return f"Level {self.level_number} - {self.action} by {self.approver.username}"
+    
+    def save(self, *args, **kwargs):
+        """Override save to prevent modifications after creation (immutability)"""
+        if self.pk:
+            # If the object already exists, raise an error
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Approval actions are immutable and cannot be modified")
+        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        """Override delete to prevent deletion (audit requirement)"""
+        raise ValidationError("Approval actions are immutable and cannot be deleted")
+
+
+class UserGmailToken(models.Model):
+    """
+    Stores Gmail OAuth tokens for users.
+    Task 1.3.6: Gmail OAuth Integration
+    
+    Security:
+    - refresh_token is encrypted using Fernet (symmetric encryption)
+    - access_token is stored plainly but short-lived
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='gmail_token')
+    
+    # Tokens
+    access_token = models.TextField(help_text="Short-lived access token")
+    refresh_token_encrypted = models.BinaryField(help_text="Encrypted refresh token")
+    token_expiry = models.DateTimeField(help_text="When the access token expires")
+    
+    # Metadata
+    email = models.EmailField(help_text="The Gmail address associated with this token")
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'User Gmail Token'
+        verbose_name_plural = 'User Gmail Tokens'
+        db_table = 'accounting_usergmailtoken'
+
+    def __str__(self):
+        return f"Gmail Token for {self.email}"
+
+
+class EmailCommunicationLog(models.Model):
+    """
+    Audit trail for all email communications.
+    Task 1.3.6: Gmail OAuth Integration
+    
+    IFRS Compliance:
+    - Complete record of all sent emails
+    - Linked to vouchers/approvals for context
+    - Read-only log
+    """
+    # Email Details
+    message_id = models.CharField(max_length=255, unique=True, help_text="Gmail Message ID")
+    subject = models.CharField(max_length=998, help_text="Email Subject")
+    sender = models.EmailField(help_text="Sender Email")
+    recipient = models.TextField(help_text="Recipient Email(s)") # Can be comma separated
+    
+    # Context
+    voucher = models.ForeignKey(
+        'VoucherV2', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='email_logs', help_text="Related Voucher"
+    )
+    approval_action = models.ForeignKey(
+        'ApprovalAction', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='email_logs', help_text="Related Approval Action"
+    )
+    
+    # Meta
+    timestamp = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=50, default='sent', help_text="Status (sent, failed)")
+    metadata_json = models.JSONField(default=dict, blank=True, help_text="Additional metadata (labels, threadId)")
+    
+    class Meta:
+        verbose_name = 'Email Communication Log'
+        verbose_name_plural = 'Email Communication Logs'
+        db_table = 'accounting_emailcommunicationlog'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(fields=['sender']),
+            models.Index(fields=['voucher']),
+        ]
+
+    def __str__(self):
+        return f"Email {self.message_id} - {self.subject}"
+
+
+# ============================================
+# RECURRING TRANSACTIONS (Task 1.4)
+# ============================================
+
+class RecurringTransaction(models.Model):
+    """
+    Automates recurring invoices, bills, and journal entries.
+    Task 1.4.1: Create RecurringTransaction Model
+    """
+    FREQUENCY_CHOICES = [
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+        ('quarterly', 'Quarterly'),
+        ('yearly', 'Yearly'),
+    ]
+    
+    DOCUMENT_TYPE_CHOICES = [
+        ('invoice', 'Invoice'),
+        ('bill', 'Bill'),
+        ('journal_entry', 'Journal Entry'),
+    ]
+
+    name = models.CharField(max_length=255, help_text="Template Name")
+    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES)
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES)
+    
+    start_date = models.DateField(default=timezone.now)
+    end_date = models.DateField(null=True, blank=True)
+    next_run_date = models.DateField(help_text="Next scheduled run date")
+    
+    template_data = models.JSONField(help_text="JSON template for the voucher/document")
+    
+    notification_emails = models.TextField(blank=True, help_text="Comma-separated emails for notifications")
+    
+    is_active = models.BooleanField(default=True)
+    auto_post = models.BooleanField(default=False, help_text="Automatically post the generated document?")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Recurring Transaction'
+        verbose_name_plural = 'Recurring Transactions'
+        ordering = ['next_run_date']
+
+    def clean(self):
+        super().clean()
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError("End date cannot be before start date.")
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_frequency_display()})"
+
+
+# ============================================
+# BUDGET MANAGEMENT (Task 1.5)
+# ============================================
+
+class Budget(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('approved', 'Approved'),
+        ('active', 'Active'),
+        ('closed', 'Closed'),
+    ]
+
+    name = models.CharField(max_length=255, help_text="Budget Name")
+    fiscal_year = models.ForeignKey('FiscalYear', on_delete=models.PROTECT, related_name='budgets')
+    
+    # Optional filtering
+    department = models.ForeignKey('DepartmentV2', on_delete=models.SET_NULL, null=True, blank=True, related_name='budgets')
+    cost_center = models.ForeignKey('CostCenterV2', on_delete=models.SET_NULL, null=True, blank=True, related_name='budgets')
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_budgets')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_budgets')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Budget'
+        verbose_name_plural = 'Budgets'
+        indexes = [
+            models.Index(fields=['fiscal_year', 'status']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+class BudgetLine(models.Model):
+    budget = models.ForeignKey(Budget, on_delete=models.CASCADE, related_name='lines')
+    account = models.ForeignKey('AccountV2', on_delete=models.CASCADE, related_name='budget_lines')
+    
+    # Stores monthly allocations as JSON: {"1": 100, "2": 150 ...}
+    monthly_allocations = models.JSONField(default=dict, help_text="Monthly distribution of budget")
+    
+    total_amount = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal('0.00'))
+    
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        verbose_name = 'Budget Line'
+        verbose_name_plural = 'Budget Lines'
+        unique_together = ('budget', 'account') # Prevent dup accounts in same budget
+
+    def __str__(self):
+        return f"{self.budget.name} - {self.account.name}"

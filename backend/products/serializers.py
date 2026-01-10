@@ -8,17 +8,25 @@ from products.models import UoMConversion, UnitOfMeasure, Product, ProductVarian
 class ProductSerializer(serializers.ModelSerializer):
     """Serializer for Product"""
     
-    uom_name = serializers.CharField(source='uom.name', read_only=True)
-    uom_symbol = serializers.CharField(source='uom.symbol', read_only=True)
+    # Backward compatibility: map uom to base_uom for frontend
+    uom = serializers.PrimaryKeyRelatedField(source='base_uom', read_only=True)
+    uom_name = serializers.CharField(source='base_uom.name', read_only=True)
+    uom_symbol = serializers.CharField(source='base_uom.symbol', read_only=True)
+    
+    # New fields with correct names
+    base_uom_name = serializers.CharField(source='base_uom.name', read_only=True)
+    base_uom_symbol = serializers.CharField(source='base_uom.symbol', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'code', 'description', 'category', 'category_name',
-            'uom', 'uom_name', 'uom_symbol', 'cost_price', 'selling_price',
-            'min_stock_level', 'max_stock_level', 'reorder_point',
-            'lead_time_days', 'is_active', 'created_at', 'updated_at'
+            'base_uom', 'base_uom_name', 'base_uom_symbol',
+            'uom', 'uom_name', 'uom_symbol',  # Backward compatibility
+            'standard_cost', 'selling_price', 'product_type',
+            'minimum_stock', 'maximum_stock', 'reorder_point',
+            'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
 

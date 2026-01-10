@@ -48,3 +48,7 @@ staticfiles/
 # OS
 .DS_Store
 Thumbs.db
+
+# Sensitive credentials
+client_secret.json
+

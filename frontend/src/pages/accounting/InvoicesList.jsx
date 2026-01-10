@@ -12,6 +12,7 @@ const InvoicesList = () => {
     const navigate = useNavigate();
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('all');
 
@@ -22,6 +23,7 @@ const InvoicesList = () => {
     const fetchInvoices = async () => {
         try {
             setLoading(true);
+            setError(null);
             let data;
             if (filterType === 'sales') {
                 data = await accountingService.getSalesInvoices();
@@ -32,9 +34,12 @@ const InvoicesList = () => {
             } else {
                 data = await accountingService.getInvoices();
             }
-            setInvoices(data);
+            // Ensure data is an array
+            setInvoices(Array.isArray(data) ? data : (data?.results || []));
         } catch (error) {
             console.error('Error fetching invoices:', error);
+            setError(error.message || 'Failed to load invoices');
+            setInvoices([]);
         } finally {
             setLoading(false);
         }
@@ -44,6 +49,7 @@ const InvoicesList = () => {
         invoice.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         invoice.partner_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
 
     const getStatusBadge = (status) => {
         const badges = {
@@ -169,6 +175,19 @@ const InvoicesList = () => {
                     </div>
                 </div>
 
+                {error && (
+                    <div style={{
+                        padding: '1rem',
+                        marginBottom: '1rem',
+                        backgroundColor: '#fee',
+                        border: '1px solid #fcc',
+                        borderRadius: '4px',
+                        color: '#c33'
+                    }}>
+                        <strong>Error:</strong> {error}
+                    </div>
+                )}
+
                 <Table
                     columns={columns}
                     data={filteredInvoices}
@@ -182,3 +201,4 @@ const InvoicesList = () => {
 };
 
 export default InvoicesList;
+

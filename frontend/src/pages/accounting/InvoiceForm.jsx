@@ -53,18 +53,22 @@ const InvoiceForm = () => {
     const fetchPartners = async () => {
         try {
             const data = await partnersService.getAll();
-            setPartners(data);
+            // Ensure data is an array
+            setPartners(Array.isArray(data) ? data : (data?.results || []));
         } catch (error) {
             console.error('Error fetching partners:', error);
+            setPartners([]); // Set empty array on error
         }
     };
 
     const fetchProducts = async () => {
         try {
             const data = await productsService.getAll();
-            setProducts(data);
+            // Ensure data is an array
+            setProducts(Array.isArray(data) ? data : (data?.results || []));
         } catch (error) {
             console.error('Error fetching products:', error);
+            setProducts([]); // Set empty array on error
         }
     };
 

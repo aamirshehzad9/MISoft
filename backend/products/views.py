@@ -21,12 +21,15 @@ class ProductViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Product CRUD operations
     """
-    queryset = Product.objects.select_related('category', 'uom').filter(is_active=True)
+    queryset = Product.objects.select_related(
+        'category', 'base_uom', 'purchase_uom', 'sales_uom', 
+        'preferred_vendor', 'density_uom', 'created_by'
+    ).filter(is_active=True)
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ['category', 'uom', 'is_active']
+    filterset_fields = ['category', 'base_uom', 'is_active', 'product_type']
     search_fields = ['name', 'code', 'description']
-    ordering_fields = ['name', 'code', 'created_at', 'cost_price', 'selling_price']
+    ordering_fields = ['name', 'code', 'created_at', 'standard_cost', 'selling_price']
     ordering = ['name']
 
 

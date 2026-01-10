@@ -30,9 +30,11 @@ const PartnersList = () => {
             } else {
                 data = await partnersService.getAll();
             }
-            setPartners(data);
+            // Ensure data is an array
+            setPartners(Array.isArray(data) ? data : (data?.results || []));
         } catch (error) {
             console.error('Error fetching partners:', error);
+            setPartners([]); // Set empty array on error
         } finally {
             setLoading(false);
         }

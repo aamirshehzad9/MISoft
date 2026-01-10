@@ -10,9 +10,13 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter, DateTimeFilter
 from django.http import HttpResponse
+from django.db import transaction
+from django.utils import timezone
 from accounting.models import (
     AuditLog, BankStatement, BankReconciliation, AccountV2,
-    Cheque, BankTransfer, Invoice, VoucherV2
+    Cheque, BankTransfer, Invoice, VoucherV2,
+    ApprovalWorkflow, ApprovalLevel, ApprovalRequest, ApprovalAction,
+    Budget, RecurringTransaction,
 )
 from accounting.serializers import (
     AuditLogSerializer, BankStatementSerializer, BankReconciliationSerializer,
@@ -20,14 +24,25 @@ from accounting.serializers import (
     BankTransferSerializer, BankTransferListSerializer,
     InvoiceSerializer, InvoiceListSerializer,
     VoucherV2Serializer, VoucherV2ListSerializer,
-    AccountV2Serializer, AccountV2ListSerializer, AccountV2HierarchySerializer
+    AccountV2Serializer, AccountV2ListSerializer, AccountV2HierarchySerializer,
+    ApprovalWorkflowSerializer, ApprovalLevelSerializer, ApprovalRequestSerializer,
+    ApprovalActionSerializer, ApprovalRequestActionSerializer,
+    RecurringTransactionSerializer,
 )
 from accounting.services.audit_service import AuditService
 from accounting.services.bank_reconciliation_service import BankReconciliationService
 from accounting.services.cheque_service import ChequeService
+from accounting.services.approval_report_service import ApprovalReportService
+from accounting.services.gmail_service import GmailAuthService, GmailSenderService
 from accounting.services.bank_transfer_service import BankTransferService
+from accounting.services.recurring_service import RecurringTransactionService
+from accounting.services.budget_service import BudgetService
+from accounting.services.cost_center_service import CostCenterService
+from django.contrib.auth import get_user_model
 import datetime
 from decimal import Decimal
+
+User = get_user_model()
 
 # ... (Existing ViewSets) ...
 
@@ -35,11 +50,17 @@ class BankStatementViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Bank Statements
     Task 2.1.2: Reconciliation Engine
+    IAS 7: Cash Flow Statement Support
     """
     queryset = BankStatement.objects.all().order_by('-statement_date')
     serializer_class = BankStatementSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
+    # Remove DjangoFilterBackend to prevent auto-filtering errors
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['bank_account__name', 'statement_date']
+    ordering_fields = ['statement_date', 'created_at']
+    ordering = ['-statement_date']
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -48,8 +69,12 @@ class BankStatementViewSet(viewsets.ModelViewSet):
         """Filter by bank account if provided"""
         queryset = super().get_queryset()
         bank_account_id = self.request.query_params.get('bank_account')
+        status_filter = self.request.query_params.get('status')
+        
         if bank_account_id:
             queryset = queryset.filter(bank_account_id=bank_account_id)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
         return queryset
 
     @action(detail=True, methods=['post'], url_path='auto-match')
@@ -100,6 +125,7 @@ class BankStatementViewSet(viewsets.ModelViewSet):
              return Response({'error': 'Expense account not found'}, status=status.HTTP_404_NOT_FOUND)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class BankReconciliationViewSet(viewsets.ModelViewSet):
@@ -639,6 +665,32 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(invoice_date__lte=end_date)
         
         return queryset
+    
+    @action(detail=False, methods=['get'], url_path='sales_invoices')
+    def sales_invoices(self, request):
+        """Get all sales invoices (IFRS 15 - Revenue from Contracts with Customers)"""
+        queryset = self.get_queryset().filter(invoice_type='sales')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='purchase_invoices')
+    def purchase_invoices(self, request):
+        """Get all purchase invoices (IAS 2 - Inventories / IAS 16 - PPE)"""
+        queryset = self.get_queryset().filter(invoice_type='purchase')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='overdue')
+    def overdue(self, request):
+        """Get all overdue invoices (IAS 1 - Presentation of Financial Statements)"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        queryset = self.get_queryset().filter(
+            due_date__lt=today,
+            status__in=['draft', 'submitted', 'partially_paid']
+        ).exclude(status='paid')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 # ============================================================================
@@ -692,6 +744,19 @@ class VoucherV2ViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(voucher_date__gte=start_date)
         if end_date:
             queryset = queryset.filter(voucher_date__lte=end_date)
+            
+        # Approval status filtering (Task 1.3.4)
+        approval_status = self.request.query_params.get('approval_status')
+        if approval_status:
+            try:
+                # Handle list of statuses if provided (e.g. ?approval_status=pending,approved)
+                if ',' in approval_status:
+                    statuses = approval_status.split(',')
+                    queryset = queryset.filter(approval_status__in=statuses)
+                else:
+                    queryset = queryset.filter(approval_status=approval_status)
+            except Exception:
+                pass
         
         return queryset
     
@@ -709,13 +774,93 @@ class VoucherV2ViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Task 1.3.4: Approval workflow integration
+        # Check approval before posting
+        can_post, reason = voucher.can_be_posted()
+        if not can_post:
+            return Response(
+                {'error': f'Cannot post voucher: {reason}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # TODO: Implement balance validation and posting logic
-        voucher.status = 'posted'
-        voucher.approved_by = request.user
-        voucher.save()
+        try:
+            with transaction.atomic():
+                voucher.status = 'posted'
+                # Don't overwrite approved_by if already set by approval workflow
+                if not voucher.approved_by:
+                    voucher.approved_by = request.user
+                    voucher.approved_at = timezone.now()
+                voucher.save()
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Error posting voucher: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
         serializer = self.get_serializer(voucher)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def initiate_approval(self, request, pk=None):
+        """
+        Initiate approval workflow for a voucher
+        POST /api/accounting/vouchers-v2/{id}/initiate_approval/
+        """
+        voucher = self.get_object()
+        
+        if voucher.status == 'posted':
+            return Response(
+                {'error': 'Cannot initiate approval for posted vouchers'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        if voucher.approval_status in ['approved', 'rejected']:
+             return Response(
+                {'error': f'Voucher is already {voucher.approval_status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            approval_request = voucher.initiate_approval_workflow()
+            
+            from .serializers import ApprovalRequestSerializer
+            serializer = self.get_serializer(voucher)
+            
+            return Response({
+                'message': 'Approval workflow initiated',
+                'voucher': serializer.data,
+                'approval_request': approval_request.id
+            })
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+    @action(detail=True, methods=['get'])
+    def check_approval_status(self, request, pk=None):
+        """
+        Check voucher approval status
+        GET /api/accounting/vouchers-v2/{id}/check_approval_status/
+        """
+        voucher = self.get_object()
+        
+        can_post, reason = voucher.can_be_posted()
+        
+        return Response({
+            'voucher_id': voucher.id,
+            'approval_status': voucher.approval_status,
+            'requires_approval': voucher.requires_approval(),
+            'can_be_posted': can_post,
+            'reason': reason,
+            'approval_request_id': voucher.approval_request.id if voucher.approval_request else None
+        })
 
 
 # ============================================================================
@@ -1316,15 +1461,25 @@ class EntityV2ViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Entity V2 Management
     Provides CRUD operations for entities
+    IAS 21: Foreign Currency Transactions
+    IFRS 10: Consolidated Financial Statements
     """
-    queryset = EntityV2.objects.all()
+    queryset = EntityV2.objects.all().order_by('code')
     serializer_class = EntityV2Serializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active']
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['code', 'name', 'description']
     ordering_fields = ['code', 'name', 'created_at']
     ordering = ['code']
+    
+    def get_queryset(self):
+        """Filter by is_active if provided"""
+        queryset = super().get_queryset()
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset
+
 
 
 # ============================================================================
@@ -1381,16 +1536,32 @@ from accounting.serializers import FairValueMeasurementSerializer
 class FairValueMeasurementViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Fair Value Measurement Management
-    Provides CRUD operations for fair value measurements (IAS 39/IFRS 9)
+    Provides CRUD operations for fair value measurements (IFRS 13)
+    IFRS 13: Fair Value Measurement - Three-level hierarchy
     """
-    queryset = FairValueMeasurement.objects.all()
+    queryset = FairValueMeasurement.objects.all().select_related('account', 'created_by').order_by('-measurement_date')
     serializer_class = FairValueMeasurementSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['asset', 'level', 'measurement_date']
-    search_fields = ['asset__asset_name', 'asset__asset_code', 'valuation_technique']
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['account__code', 'account__name', 'external_valuer', 'valuation_technique']
     ordering_fields = ['measurement_date', 'fair_value', 'created_at']
     ordering = ['-measurement_date']
+    
+    def get_queryset(self):
+        """Filter by fair_value_level, measurement_date if provided"""
+        queryset = super().get_queryset()
+        fair_value_level = self.request.query_params.get('fair_value_level')
+        measurement_date = self.request.query_params.get('measurement_date')
+        account_id = self.request.query_params.get('account')
+        
+        if fair_value_level:
+            queryset = queryset.filter(fair_value_level=fair_value_level)
+        if measurement_date:
+            queryset = queryset.filter(measurement_date=measurement_date)
+        if account_id:
+            queryset = queryset.filter(account_id=account_id)
+        return queryset
+
 
 
 # ============================================================================
@@ -1413,3 +1584,616 @@ class FXRevaluationLogViewSet(viewsets.ModelViewSet):
     search_fields = ['revaluation_id', 'entity__entity_code', 'entity__entity_name']
     ordering_fields = ['revaluation_date', 'created_at', 'net_fx_gain_loss']
     ordering = ['-revaluation_date', '-created_at']
+
+
+# ============================================================================
+# REFERENCE DEFINITION VIEWSET
+# ============================================================================
+
+from accounting.models import ReferenceDefinition
+from accounting.serializers import ReferenceDefinitionSerializer
+
+class ReferenceDefinitionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Reference Definition Management
+    Provides CRUD operations for user-defined reference fields
+    Used for dynamic form field configuration in Invoices and Vouchers
+    
+    Endpoints:
+        GET    /api/accounting/reference-definitions/              - List definitions
+        POST   /api/accounting/reference-definitions/              - Create definition
+        GET    /api/accounting/reference-definitions/{id}/         - Get definition details
+        PUT    /api/accounting/reference-definitions/{id}/         - Update definition
+        DELETE /api/accounting/reference-definitions/{id}/         - Delete definition
+    """
+    queryset = ReferenceDefinition.objects.all().order_by('model_name', 'field_label')
+    serializer_class = ReferenceDefinitionSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['model_name', 'data_type', 'is_required', 'is_active']
+    search_fields = ['field_key', 'field_label']
+    ordering_fields = ['model_name', 'field_label', 'created_at']
+    ordering = ['model_name', 'field_label']
+    
+    def get_queryset(self):
+        """Filter by model_name if provided"""
+        queryset = super().get_queryset()
+        model_name = self.request.query_params.get('model_name')
+        if model_name:
+            queryset = queryset.filter(model_name=model_name, is_active=True)
+        return queryset
+
+
+# ============================================================================
+# MODULE 1.3: APPROVAL WORKFLOW SYSTEM - API VIEWSETS
+# ============================================================================
+
+class ApprovalWorkflowViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for ApprovalWorkflow
+    Module 1.3.3: Approval API & UI
+    
+    Endpoints:
+    - GET /api/accounting/approval-workflows/ - List all workflows
+    - POST /api/accounting/approval-workflows/ - Create new workflow (admin only)
+    - GET /api/accounting/approval-workflows/{id}/ - Retrieve workflow
+    - PUT /api/accounting/approval-workflows/{id}/ - Update workflow (admin only)
+    - DELETE /api/accounting/approval-workflows/{id}/ - Delete workflow (admin only)
+    
+    Filters:
+    - document_type: Filter by document type
+    - is_active: Filter by active status
+    """
+    
+    queryset = ApprovalWorkflow.objects.all()
+    serializer_class = ApprovalWorkflowSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['document_type', 'is_active']
+    search_fields = ['workflow_name', 'description']
+    ordering_fields = ['created_at', 'workflow_name']
+    ordering = ['-created_at']
+    
+    def get_permissions(self):
+        """
+        Admin users can create/update/delete workflows
+        Regular users can only view
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAdminUser()]
+        return [IsAuthenticated()]
+
+
+class ApprovalLevelViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for ApprovalLevel
+    Module 1.3.3: Approval API & UI
+    
+    Endpoints:
+    - GET /api/accounting/approval-levels/ - List all levels
+    - POST /api/accounting/approval-levels/ - Create new level (admin only)
+    - GET /api/accounting/approval-levels/{id}/ - Retrieve level
+    - PUT /api/accounting/approval-levels/{id}/ - Update level (admin only)
+    - DELETE /api/accounting/approval-levels/{id}/ - Delete level (admin only)
+    
+    Filters:
+    - workflow: Filter by workflow ID
+    - approver: Filter by approver user ID
+    - level_number: Filter by level number
+    """
+    
+    queryset = ApprovalLevel.objects.all()
+    serializer_class = ApprovalLevelSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['workflow', 'approver', 'level_number', 'is_mandatory']
+    ordering_fields = ['level_number', 'created_at']
+    ordering = ['level_number']
+    
+    def get_permissions(self):
+        """
+        Admin users can create/update/delete levels
+        Regular users can only view
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAdminUser()]
+        return [IsAuthenticated()]
+
+
+class ApprovalRequestViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for ApprovalRequest
+    Module 1.3.3: Approval API & UI
+    
+    Endpoints:
+    - GET /api/accounting/approval-requests/ - List all requests
+    - POST /api/accounting/approval-requests/ - Create new request
+    - GET /api/accounting/approval-requests/{id}/ - Retrieve request
+    - PUT /api/accounting/approval-requests/{id}/ - Update request (limited)
+    - DELETE /api/accounting/approval-requests/{id}/ - Delete request (limited)
+    
+    Custom Actions:
+    - POST /api/accounting/approval-requests/{id}/approve/ - Approve request
+    - POST /api/accounting/approval-requests/{id}/reject/ - Reject request
+    - POST /api/accounting/approval-requests/{id}/delegate/ - Delegate request
+    - GET /api/accounting/approval-requests/pending_approvals/ - Get pending approvals for current user
+    
+    Filters:
+    - status: Filter by status (pending, approved, rejected)
+    - document_type: Filter by document type
+    - current_approver: Filter by current approver user ID
+    - requester: Filter by requester user ID
+    """
+    
+    queryset = ApprovalRequest.objects.all()
+    serializer_class = ApprovalRequestSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'document_type', 'current_approver', 'requester']
+    search_fields = ['document_type']
+    ordering_fields = ['request_date', 'completion_date', 'amount']
+    ordering = ['-request_date']
+    
+    def get_queryset(self):
+        """
+        Optionally filter by current user's pending approvals
+        """
+        queryset = super().get_queryset()
+        
+        # Select related for performance
+        queryset = queryset.select_related(
+            'workflow',
+            'requester',
+            'current_approver'
+        ).prefetch_related('actions')
+        
+        return queryset
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """
+        Approve an approval request
+        
+        POST /api/accounting/approval-requests/{id}/approve/
+        
+        Body:
+        {
+            "comments": "Approved for payment",
+            "ip_address": "192.168.1.1"
+        }
+        """
+        approval_request = self.get_object()
+        serializer = ApprovalRequestActionSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        from accounting.services import ApprovalService
+        service = ApprovalService()
+        
+        try:
+            result = service.approve(
+                approval_request_id=approval_request.id,
+                approver=request.user,
+                comments=serializer.validated_data.get('comments', ''),
+                ip_address=serializer.validated_data.get('ip_address', request.META.get('REMOTE_ADDR', '0.0.0.0'))
+            )
+            
+            return Response(result, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """
+        Reject an approval request
+        
+        POST /api/accounting/approval-requests/{id}/reject/
+        
+        Body:
+        {
+            "comments": "Insufficient documentation",
+            "ip_address": "192.168.1.1"
+        }
+        """
+        approval_request = self.get_object()
+        serializer = ApprovalRequestActionSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        from accounting.services import ApprovalService
+        service = ApprovalService()
+        
+        try:
+            result = service.reject(
+                approval_request_id=approval_request.id,
+                approver=request.user,
+                comments=serializer.validated_data.get('comments', ''),
+                ip_address=serializer.validated_data.get('ip_address', request.META.get('REMOTE_ADDR', '0.0.0.0'))
+            )
+            
+            return Response(result, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'])
+    def delegate(self, request, pk=None):
+        """
+        Delegate an approval request to another user
+        
+        POST /api/accounting/approval-requests/{id}/delegate/
+        
+        Body:
+        {
+            "delegate_to": 5,  // User ID
+            "comments": "Delegating while on leave",
+            "ip_address": "192.168.1.1"
+        }
+        """
+        approval_request = self.get_object()
+        serializer = ApprovalRequestActionSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        delegate_to_id = serializer.validated_data.get('delegate_to')
+        if not delegate_to_id:
+            return Response(
+                {'error': 'delegate_to field is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            delegate_to = User.objects.get(id=delegate_to_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': f'User with ID {delegate_to_id} does not exist'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        from accounting.services import ApprovalService
+        service = ApprovalService()
+        
+        try:
+            result = service.delegate(
+                approval_request_id=approval_request.id,
+                approver=request.user,
+                delegate_to=delegate_to,
+                comments=serializer.validated_data.get('comments', ''),
+                ip_address=serializer.validated_data.get('ip_address', request.META.get('REMOTE_ADDR', '0.0.0.0'))
+            )
+            
+            return Response(result, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['get'])
+    def pending_approvals(self, request):
+        """
+        Get all pending approvals for the current user
+        
+        GET /api/accounting/approval-requests/pending_approvals/
+        """
+        from accounting.services import ApprovalService
+        service = ApprovalService()
+        pending = service.get_pending_approvals(request.user)
+        
+        serializer = self.get_serializer(pending, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ApprovalActionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for ApprovalAction (Read-only)
+    Module 1.3.3: Approval API & UI
+    
+    Endpoints:
+    - GET /api/accounting/approval-actions/ - List all actions
+    - GET /api/accounting/approval-actions/{id}/ - Retrieve action
+    
+    Filters:
+    - approval_request: Filter by approval request ID
+    - approver: Filter by approver user ID
+    - action: Filter by action type (approved, rejected, delegated)
+    
+    Note: This is read-only to maintain audit trail integrity (IFRS IAS 1)
+    """
+    
+    queryset = ApprovalAction.objects.all()
+    serializer_class = ApprovalActionSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['approval_request', 'approver', 'action', 'level_number']
+    ordering_fields = ['action_date']
+    ordering = ['-action_date']
+    
+    def get_queryset(self):
+        """Select related for performance"""
+        return super().get_queryset().select_related(
+            'approval_request',
+            'approver'
+        )
+
+
+# ============================================
+# APPROVAL REPORT VIEW SET
+# ============================================
+
+class ApprovalReportViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Approval Workflow Reports.
+    Task 1.3.5: Approval Reports
+    
+    Provides specialized endpoints for reporting.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    @action(detail=False, methods=['get'], url_path='pending')
+    def pending_summary(self, request):
+        """
+        Get summary of pending approvals.
+        URL: /api/accounting/reports/approvals/pending/
+        """
+        filters = {}
+        if 'workflow' in request.query_params:
+            filters['workflow'] = request.query_params['workflow']
+        if 'document_type' in request.query_params:
+            filters['document_type'] = request.query_params['document_type']
+            
+        data = ApprovalReportService.get_pending_approvals_report(filters)
+        return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='history')
+    def history_log(self, request):
+        """
+        Get detailed approval history log.
+        URL: /api/accounting/reports/approvals/history/
+        """
+        filters = {}
+        if 'actor' in request.query_params:
+            filters['actor'] = request.query_params['actor']
+        if 'start_date' in request.query_params:
+            filters['start_date'] = request.query_params['start_date']
+        if 'end_date' in request.query_params:
+            filters['end_date'] = request.query_params['end_date']
+            
+        data = ApprovalReportService.get_approval_history_report(filters)
+        return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='turnaround')
+    def turnaround_stats(self, request):
+        """
+        Get turnaround time statistics.
+        URL: /api/accounting/reports/approvals/turnaround/
+        """
+        data = ApprovalReportService.get_turnaround_time_report()
+        return Response(data)
+
+
+# ============================================
+# GMAIL OAUTH VIEW SET
+# ============================================
+
+class GoogleAuthViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Gmail OAuth Flow.
+    Task 1.3.6: Gmail OAuth Integration
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='login')
+    def login(self, request):
+        """
+        Initiate OAuth flow.
+        URL: /api/accounting/auth/google/login/
+        """
+        # Determine redirect URI based on environment (Host header)
+        host = request.get_host()
+        protocol = 'https' if request.is_secure() else 'http'
+        # For localhost testing, ensure http
+        if 'localhost' in host or '127.0.0.1' in host:
+            protocol = 'http'
+            
+        redirect_uri = f"{protocol}://{host}/api/accounting/auth/google/callback/"
+        
+        # User defined redirect URI from request if separate frontend?
+        # For now, use backend callback
+        
+        try:
+            auth_url, state = GmailAuthService.get_authorization_url(redirect_uri)
+            # Store state in session if needed for CSRF
+            return Response({'authorization_url': auth_url})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='callback')
+    def callback(self, request):
+        """
+        Handle OAuth callback.
+        URL: /api/accounting/auth/google/callback/
+        """
+        code = request.query_params.get('code')
+        if not code:
+            return Response({'error': 'Missing code'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Reconstruct redirect URI
+        host = request.get_host()
+        protocol = 'https' if request.is_secure() else 'http'
+        if 'localhost' in host or '127.0.0.1' in host:
+            protocol = 'http'
+        redirect_uri = f"{protocol}://{host}/api/accounting/auth/google/callback/"
+
+        try:
+            token = GmailAuthService.exchange_code(code, redirect_uri, request.user)
+            return Response({
+                'message': 'Gmail account linked successfully',
+                'email': token.email
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# ============================================
+# RECURRING TRANSACTION VIEWS (Task 1.4)
+# ============================================
+
+class RecurringTransactionViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing recurring transactions.
+    Supports filtering and preview generation.
+    """
+    queryset = RecurringTransaction.objects.all()
+    serializer_class = RecurringTransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['document_type', 'frequency', 'is_active', 'start_date', 'next_run_date']
+    search_fields = ['name']
+    ordering_fields = ['next_run_date', 'name']
+
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        """Preview the next transaction generation"""
+        rt = self.get_object()
+        
+        # Simulate generation logic
+        preview_data = {
+           'template': rt.template_data,
+           'next_run_date': rt.next_run_date,
+           'preview_voucher': {
+               'voucher_date': rt.next_run_date,
+               'narration': f"{rt.name} - {rt.next_run_date} (PREVIEW)",
+           }
+        }
+        return Response(preview_data)
+
+    @action(detail=False, methods=['post'])
+    def process_due(self, request):
+        """Manually trigger processing of due transactions (Admin only)"""
+        if not request.user.is_staff:
+             return Response({'error': 'Admin only'}, status=status.HTTP_403_FORBIDDEN)
+             
+        try:
+            generated = RecurringTransactionService.generate_due_transactions()
+            return Response({'message': f"Processed {len(generated)} transactions", 'generated': generated})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ============================================
+# BUDGET REPORTS (Task 1.5.3)
+# ============================================
+
+class BudgetReportViewSet(viewsets.ViewSet):
+    """
+    Budget reporting endpoints.
+    Task 1.5.3
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='budget-vs-actual')
+    def budget_vs_actual(self, request):
+        """
+        Budget vs Actual Report
+        Parameters: budget_id
+        """
+        budget_id = request.query_params.get('budget_id')
+        if not budget_id:
+            return Response({'error': 'budget_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            report = BudgetService.calculate_variance(budget_id)
+            return Response(report)
+        except Budget.DoesNotExist:
+            return Response({'error': 'Budget not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='variance-analysis')
+    def variance_analysis(self, request):
+        """
+        Variance Analysis Report (Alias for budget-vs-actual but could have different filters)
+        """
+        return self.budget_vs_actual(request)
+
+    @action(detail=False, methods=['get'], url_path='utilization')
+    def utilization(self, request):
+        """
+        Budget Utilization Report
+        Parameters: budget_id
+        """
+        budget_id = request.query_params.get('budget_id')
+        if not budget_id:
+            return Response({'error': 'budget_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            report = BudgetService.get_budget_utilization(budget_id)
+            return Response(report)
+        except Budget.DoesNotExist:
+            return Response({'error': 'Budget not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ============================================
+# COST CENTER REPORTS (Task 1.6.3)
+# ============================================
+
+class CostCenterReportViewSet(viewsets.ViewSet):
+    """
+    Cost Center reporting endpoints.
+    Task 1.6.3
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='profitability')
+    def profitability(self, request):
+        """
+        Profit Center Performance Report (P&L)
+        Params: cost_center_id, start_date, end_date
+        """
+        cost_center_id = request.query_params.get('cost_center_id')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if not all([cost_center_id, start_date, end_date]):
+            return Response({'error': 'Missing params'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            report = CostCenterService.calculate_profitability(cost_center_id, start_date, end_date)
+            if 'error' in report:
+                return Response(report, status=status.HTTP_400_BAD_REQUEST)
+            return Response(report)
+        except CostCenterV2.DoesNotExist:
+             return Response({'error': 'Cost Center not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='allocation')
+    def allocation(self, request):
+        """
+        Cost Allocation Report (Expenses for Cost Center)
+        Params: cost_center_id, start_date, end_date
+        """
+        cost_center_id = request.query_params.get('cost_center_id')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if not all([cost_center_id, start_date, end_date]):
+            return Response({'error': 'Missing params'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            report = CostCenterService.get_cost_allocation_report(cost_center_id, start_date, end_date)
+            return Response(report)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

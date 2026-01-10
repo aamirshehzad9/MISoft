@@ -201,3 +201,53 @@ def register_audit_signals():
     # Signals are already registered via @receiver decorator
     # This function is here for explicit registration if needed
     pass
+
+
+# ============================================================================
+# Task 1.3.4: Approval Workflow Integration Signals
+# ============================================================================
+
+@receiver(post_save, sender='accounting.ApprovalRequest')
+def update_voucher_approval_status(sender, instance, created, **kwargs):
+    """
+    Update VoucherV2 approval_status when ApprovalRequest status changes
+    
+    Task 1.3.4: Integration with Existing Models
+    IAS 1 - Internal Controls: Automatic status synchronization
+    
+    Args:
+        sender: ApprovalRequest model
+        instance: ApprovalRequest instance
+        created: Boolean indicating if this is a new instance
+        **kwargs: Additional keyword arguments
+    """
+    # Only process voucher-type approval requests
+    if instance.document_type != 'voucher':
+        return
+    
+    # Import here to avoid circular imports
+    from accounting.models import VoucherV2
+    
+    try:
+        voucher = VoucherV2.objects.get(id=instance.document_id)
+        
+        # Update voucher approval_status based on approval request status
+        if instance.status == 'approved':
+            voucher.approval_status = 'approved'
+            voucher.approved_by = instance.current_approver
+            voucher.approved_at = instance.completion_date
+            voucher.save(update_fields=['approval_status', 'approved_by', 'approved_at'])
+            
+        elif instance.status == 'rejected':
+            voucher.approval_status = 'rejected'
+            voucher.save(update_fields=['approval_status'])
+            
+        elif instance.status == 'pending' and not created:
+            # Status changed to pending (e.g., after delegation or level change)
+            voucher.approval_status = 'pending'
+            voucher.save(update_fields=['approval_status'])
+            
+    except VoucherV2.DoesNotExist:
+        # Voucher not found - this is acceptable as approval requests
+        # can exist for other document types
+        pass

@@ -30,9 +30,11 @@ const ProductsList = () => {
             } else {
                 data = await productsService.getAll();
             }
-            setProducts(data);
+            // Ensure data is an array
+            setProducts(Array.isArray(data) ? data : (data?.results || []));
         } catch (error) {
             console.error('Error fetching products:', error);
+            setProducts([]); // Set empty array on error
         } finally {
             setLoading(false);
         }

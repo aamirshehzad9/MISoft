@@ -9,8 +9,11 @@ from accounting.views import (
     AccountV2ViewSet, AssetCategoryViewSet, FixedAssetViewSet,
     FiscalYearViewSet, TaxCodeViewSet, TaxMasterV2ViewSet, TaxGroupV2ViewSet,
     CurrencyV2ViewSet, ExchangeRateV2ViewSet, CostCenterV2ViewSet, DepartmentV2ViewSet, EntityV2ViewSet,
-    BankAccountViewSet, FairValueMeasurementViewSet, FXRevaluationLogViewSet,
-    fixed_asset_register_report, assets_by_category_report, assets_by_location_report
+    BankAccountViewSet, FairValueMeasurementViewSet, FXRevaluationLogViewSet, ReferenceDefinitionViewSet,
+    fixed_asset_register_report, assets_by_category_report, assets_by_location_report,
+    ApprovalWorkflowViewSet, ApprovalLevelViewSet, ApprovalRequestViewSet, ApprovalActionViewSet,
+    ApprovalReportViewSet, GoogleAuthViewSet, RecurringTransactionViewSet,
+    BudgetReportViewSet, CostCenterReportViewSet,
 )
 
 router = DefaultRouter()
@@ -36,6 +39,18 @@ router.register(r'entities-v2', EntityV2ViewSet, basename='entity-v2')
 router.register(r'bank-accounts', BankAccountViewSet, basename='bank-account')
 router.register(r'fair-value-measurements', FairValueMeasurementViewSet, basename='fair-value-measurement')
 router.register(r'fx-revaluation-logs', FXRevaluationLogViewSet, basename='fx-revaluation-log')
+router.register(r'reference-definitions', ReferenceDefinitionViewSet, basename='referencedefinition')
+router.register(r'approval-workflows', ApprovalWorkflowViewSet, basename='approvalworkflow')
+router.register(r'approval-levels', ApprovalLevelViewSet, basename='approvallevel')
+router.register(r'approval-requests', ApprovalRequestViewSet, basename='approvalrequest')
+router.register(r'approval-actions', ApprovalActionViewSet, basename='approvalaction')
+router.register(r'reports/approvals', ApprovalReportViewSet, basename='approval-reports')
+router.register(r'auth/google', GoogleAuthViewSet, basename='google-auth')
+
+router.register(r'reports/budget', BudgetReportViewSet, basename='budget-reports')
+router.register(r'reports/cost-centers', CostCenterReportViewSet, basename='costcenter-reports')
+
+router.register(r'recurring-transactions', RecurringTransactionViewSet, basename='recurringtransaction')
 
 urlpatterns = [
     path('', include(router.urls)),

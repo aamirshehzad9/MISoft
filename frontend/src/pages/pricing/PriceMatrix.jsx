@@ -35,11 +35,17 @@ const PriceMatrix = () => {
         productsService.getAll(),
         partnersService.getAll()
       ]);
-      setRules(rulesRes.data);
-      setProducts(prods.results || prods);
-      setCustomers(custs.results || custs);
+      // Axios already extracts .data, so rulesRes is the response data
+      // API returns paginated response: {count, next, previous, results: []}
+      setRules(Array.isArray(rulesRes) ? rulesRes : (rulesRes?.results || []));
+      setProducts(Array.isArray(prods) ? prods : (prods?.results || []));
+      setCustomers(Array.isArray(custs) ? custs : (custs?.results || []));
     } catch (error) {
       console.error("Error loading data", error);
+      // Set empty arrays on error to prevent crashes
+      setRules([]);
+      setProducts([]);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -110,12 +116,12 @@ const PriceMatrix = () => {
     { 
       key: 'price', 
       label: 'Price/Discount',
-      render: (row) => row.price > 0 ? `PKR ${row.price}` : `${row.discount_percentage}% Off`
+      render: (value, row) => row.price > 0 ? `PKR ${row.price}` : `${row.discount_percentage}% Off`
     },
     {
       key: 'is_active',
       label: 'Status',
-      render: (row) => <Badge variant={row.is_active ? 'success' : 'danger'}>{row.is_active ? 'Active' : 'Inactive'}</Badge>
+      render: (value, row) => <Badge variant={row.is_active ? 'success' : 'danger'}>{row.is_active ? 'Active' : 'Inactive'}</Badge>
     }
   ];
 
